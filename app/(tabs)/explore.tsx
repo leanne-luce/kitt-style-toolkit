@@ -1,112 +1,264 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { useState } from 'react';
+import { StyleSheet, ScrollView, View, Alert } from 'react-native';
+import { Card, Button, TextInput } from 'react-native-paper';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { Colors, Typography } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 
-export default function TabTwoScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
+export default function ProfileScreen() {
+  const { user, loading, signIn, signUp, signOut } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAuth = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (isSignUp) {
+        await signUp(email, password);
+        Alert.alert('Success', 'Check your email to confirm your account!');
+        setEmail('');
+        setPassword('');
+        setIsSignUp(false);
+      } else {
+        await signIn(email, password);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Authentication failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Sign out failed');
+    }
+  };
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText>Loading...</ThemedText>
       </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
+    );
+  }
+
+  if (user) {
+    return (
+      <ThemedView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <ThemedText type="title" style={styles.title}>
+              Profile
             </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+            <ThemedText type="subtitle" style={styles.subtitle}>
+              Your style profile
+            </ThemedText>
+          </View>
+
+          <Card style={styles.card} elevation={2}>
+            <Card.Content style={styles.cardContent}>
+              <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+
+              <View style={styles.infoRow}>
+                <ThemedText style={styles.label}>Email:</ThemedText>
+                <ThemedText style={styles.value}>{user.email}</ThemedText>
+              </View>
+
+              <Button
+                mode="contained"
+                onPress={handleSignOut}
+                style={styles.signOutButton}
+                buttonColor={Colors.light.tint}>
+                Sign Out
+              </Button>
+            </Card.Content>
+          </Card>
+
+          <Card style={styles.card} elevation={2}>
+            <Card.Content style={styles.cardContent}>
+              <ThemedText style={styles.sectionTitle}>About Kitt Style Toolkit</ThemedText>
+              <ThemedText style={styles.aboutText}>
+                Your personal style companion featuring daily style inspiration, outfit weather reports,
+                and a capsule wardrobe builder.
+              </ThemedText>
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      </ThemedView>
+    );
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <ThemedText type="title" style={styles.title}>
+            {isSignUp ? 'Create Account' : 'Sign In'}
+          </ThemedText>
+          <ThemedText type="subtitle" style={styles.subtitle}>
+            {isSignUp ? 'Join Kitt Style Toolkit' : 'Welcome back'}
+          </ThemedText>
+        </View>
+
+        <Card style={styles.card} elevation={2}>
+          <Card.Content style={styles.cardContent}>
+            <TextInput
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              mode="outlined"
+              style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={Colors.light.tint}
+            />
+
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              mode="outlined"
+              style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={Colors.light.tint}
+            />
+
+            <Button
+              mode="contained"
+              onPress={handleAuth}
+              loading={isSubmitting}
+              disabled={isSubmitting}
+              style={styles.authButton}
+              buttonColor={Colors.light.tint}>
+              {isSignUp ? 'Sign Up' : 'Sign In'}
+            </Button>
+
+            <Button
+              mode="text"
+              onPress={() => setIsSignUp(!isSignUp)}
+              style={styles.toggleButton}
+              textColor={Colors.light.tint}>
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+            </Button>
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.card} elevation={2}>
+          <Card.Content style={styles.cardContent}>
+            <ThemedText style={styles.noteTitle}>Getting Started</ThemedText>
+            <ThemedText style={styles.noteText}>
+              Sign up or sign in to save your favorite outfits, build capsule wardrobes, and sync your
+              style across devices.
+            </ThemedText>
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  scrollContent: {
+    padding: 24,
+    paddingTop: 60,
+  },
+  header: {
+    marginBottom: 32,
+  },
+  title: {
+    ...Typography.title,
+    fontSize: 36,
+    fontWeight: '200',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  subtitle: {
+    ...Typography.subtitle,
+    fontSize: 12,
+    fontWeight: '300',
+    letterSpacing: 2,
+    opacity: 0.6,
+  },
+  card: {
+    marginBottom: 20,
+    backgroundColor: Colors.light.surface,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  cardContent: {
+    padding: 24,
+  },
+  sectionTitle: {
+    ...Typography.heading,
+    fontSize: 20,
+    fontWeight: '300',
+    letterSpacing: 0.5,
+    marginBottom: 20,
+  },
+  input: {
+    marginBottom: 16,
+    backgroundColor: Colors.light.surface,
+  },
+  authButton: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  toggleButton: {
+    marginTop: 8,
+  },
+  signOutButton: {
+    marginTop: 24,
+  },
+  infoRow: {
+    marginBottom: 16,
+  },
+  label: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 1,
+    opacity: 0.5,
+    marginBottom: 4,
+  },
+  value: {
+    ...Typography.body,
+    fontSize: 16,
+    fontWeight: '300',
+  },
+  aboutText: {
+    ...Typography.body,
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: '300',
+    opacity: 0.8,
+  },
+  noteTitle: {
+    ...Typography.heading,
+    fontSize: 16,
+    fontWeight: '400',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  noteText: {
+    ...Typography.body,
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: '300',
+    opacity: 0.7,
   },
 });

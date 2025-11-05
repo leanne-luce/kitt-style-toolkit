@@ -9,7 +9,7 @@ export enum ItemCategory {
 
 export interface WardrobeItem {
   id: string;
-  imageUri: string;
+  imageUri: string | number; // string for URIs, number for require() assets
   category: ItemCategory;
   name?: string;
   color?: string;

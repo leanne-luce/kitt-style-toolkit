@@ -63,7 +63,11 @@ export function OutfitCard({ outfit, onToggleFavorite, onPress }: OutfitCardProp
                 zIndex: layouts[index].zIndex,
               },
             ]}>
-            <Image source={{ uri: item.imageUri }} style={styles.image} contentFit="cover" />
+            <Image
+              source={typeof item.imageUri === 'string' ? { uri: item.imageUri } : item.imageUri}
+              style={styles.image}
+              contentFit="cover"
+            />
           </View>
         ))}
       </View>

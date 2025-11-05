@@ -38,7 +38,11 @@ export function ItemSlot({ item, slotNumber, onPress, onRemove }: ItemSlotProps)
 
   return (
     <Pressable style={styles.filledSlot} onPress={onPress}>
-      <Image source={{ uri: item.imageUri }} style={styles.image} contentFit="cover" />
+      <Image
+        source={typeof item.imageUri === 'string' ? { uri: item.imageUri } : item.imageUri}
+        style={styles.image}
+        contentFit="cover"
+      />
       <View style={styles.overlay}>
         <View style={styles.categoryBadge}>
           <ThemedText style={styles.categoryText}>

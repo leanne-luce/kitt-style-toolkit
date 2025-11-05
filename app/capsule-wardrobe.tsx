@@ -1,25 +1,25 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  ScrollView,
-  View,
-  Pressable,
   Alert,
   Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
 } from 'react-native';
-import { Card, Divider, Button, SegmentedButtons } from 'react-native-paper';
-import { useState, useEffect } from 'react';
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Button, Card, Divider, SegmentedButtons } from 'react-native-paper';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { ItemSlot } from '@/components/item-slot';
 import { OutfitCard } from '@/components/outfit-card';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
-import { WardrobeItem, ItemCategory, Capsule, Outfit } from '@/types/capsule';
-import { generateOutfits, validateWardrobe, getOutfitStats } from '@/utils/outfit-generator';
-import { saveCapsule, getAllCapsules } from '@/utils/capsule-storage';
+import { Capsule, ItemCategory, Outfit, WardrobeItem } from '@/types/capsule';
+import { getAllCapsules, saveCapsule } from '@/utils/capsule-storage';
+import { generateOutfits, getOutfitStats, validateWardrobe } from '@/utils/outfit-generator';
 
 type ViewMode = 'builder' | 'outfits' | 'library';
 type OutfitFilter = 'all' | 'dress' | 'standard';
@@ -28,63 +28,63 @@ type OutfitFilter = 'all' | 'dress' | 'standard';
 const sampleItems: WardrobeItem[] = [
   {
     id: 'sample_1',
-    imageUri: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=400',
+    imageUri: require('@/assets/images/lululemon-henley.png'),
     category: ItemCategory.TOP,
-    name: 'White Blouse',
+    name: 'Green Henley',
   },
   {
     id: 'sample_2',
-    imageUri: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=400',
+    imageUri: require('@/assets/images/jcrew-sweater.avif'),
     category: ItemCategory.TOP,
-    name: 'Black T-Shirt',
+    name: 'Wool Cardigan',
   },
   {
     id: 'sample_3',
-    imageUri: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400',
+    imageUri: require('@/assets/images/jcrew-green-turtleneck.avif'),
     category: ItemCategory.TOP,
-    name: 'Striped Top',
+    name: 'Green Turtleneck',
   },
   {
     id: 'sample_4',
-    imageUri: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=400',
+    imageUri: require('@/assets/images/jcrew-black-trouser.avif'),
     category: ItemCategory.BOTTOM,
     name: 'Black Trousers',
   },
   {
     id: 'sample_5',
-    imageUri: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400',
+    imageUri: require('@/assets/images/jcrew-jeans.avif'),
     category: ItemCategory.BOTTOM,
     name: 'Denim Jeans',
   },
   {
     id: 'sample_6',
-    imageUri: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?w=400',
+    imageUri: require('@/assets/images/jcrew-black-dress.avif'),
     category: ItemCategory.DRESS,
     name: 'Black Dress',
   },
   {
     id: 'sample_7',
-    imageUri: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400',
+    imageUri: require('@/assets/images/jcrew-stripe-turtleneck.avif'),
     category: ItemCategory.DRESS,
-    name: 'Midi Dress',
+    name: 'Striped Dress',
   },
   {
     id: 'sample_8',
-    imageUri: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400',
+    imageUri: require('@/assets/images/jcrew-black-cardigan.avif'),
     category: ItemCategory.OUTERWEAR,
-    name: 'Blazer',
+    name: 'Black Cardigan',
   },
   {
     id: 'sample_9',
-    imageUri: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400',
+    imageUri: require('@/assets/images/salomon-sneaks.avif'),
     category: ItemCategory.SHOES,
     name: 'White Sneakers',
   },
   {
     id: 'sample_10',
-    imageUri: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=400',
+    imageUri: require('@/assets/images/lululemon-baseballcap.png'),
     category: ItemCategory.ACCESSORY,
-    name: 'Leather Bag',
+    name: 'Baseball Cap',
   },
 ];
 
@@ -448,7 +448,7 @@ export default function CapsuleWardrobeScreen() {
                     {selectedOutfit.items.map((item) => (
                       <View key={item.id} style={styles.outfitModalItem}>
                         <Image
-                          source={{ uri: item.imageUri }}
+                          source={typeof item.imageUri === 'string' ? { uri: item.imageUri } : item.imageUri}
                           style={styles.outfitModalImage}
                           contentFit="cover"
                         />
