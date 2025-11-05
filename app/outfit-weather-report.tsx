@@ -7,6 +7,9 @@ import { ThemedView } from '@/components/themed-view';
 import { getCurrentLocation, getCityFromCoords } from '@/services/location';
 import { getWeather, WeatherData } from '@/services/weather';
 import { getOutfitRecommendation } from '@/utils/outfit-recommendations';
+import { getWeatherIllustration } from '@/components/illustrations/weather-illustrations';
+import { getGarmentIllustration } from '@/components/illustrations/garment-illustrations';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { Colors, Typography } from '@/constants/theme';
 
 export default function OutfitWeatherReportScreen() {
@@ -14,6 +17,7 @@ export default function OutfitWeatherReportScreen() {
   const [location, setLocation] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const illustrationColor = useThemeColor({}, 'text');
 
   useEffect(() => {
     loadWeather();
@@ -81,8 +85,14 @@ export default function OutfitWeatherReportScreen() {
 
                 {/* Current Temperature */}
                 <View style={styles.tempContainer}>
-                  <ThemedText style={styles.temperature}>{weather.temperature}°F</ThemedText>
-                  <ThemedText style={styles.description}>{weather.description}</ThemedText>
+                  {(() => {
+                    const WeatherIcon = getWeatherIllustration(weather.weatherCode);
+                    return <WeatherIcon size={70} color={illustrationColor} />;
+                  })()}
+                  <View style={styles.tempTextContainer}>
+                    <ThemedText style={styles.temperature}>{weather.temperature}°F</ThemedText>
+                    <ThemedText style={styles.description}>{weather.description}</ThemedText>
+                  </View>
                 </View>
 
                 <Divider style={styles.divider} />
@@ -127,18 +137,42 @@ export default function OutfitWeatherReportScreen() {
                         )}
 
                         <View style={styles.recommendationItem}>
-                          <ThemedText style={styles.recommendationLabel}>Layers</ThemedText>
-                          <ThemedText style={styles.recommendationText}>{recommendation.layers}</ThemedText>
+                          <View style={styles.recommendationRow}>
+                            {(() => {
+                              const LayersIcon = getGarmentIllustration(recommendation.layers);
+                              return <LayersIcon size={50} color={illustrationColor} />;
+                            })()}
+                            <View style={styles.recommendationTextContainer}>
+                              <ThemedText style={styles.recommendationLabel}>Layers</ThemedText>
+                              <ThemedText style={styles.recommendationText}>{recommendation.layers}</ThemedText>
+                            </View>
+                          </View>
                         </View>
 
                         <View style={styles.recommendationItem}>
-                          <ThemedText style={styles.recommendationLabel}>Accessories</ThemedText>
-                          <ThemedText style={styles.recommendationText}>{recommendation.accessories}</ThemedText>
+                          <View style={styles.recommendationRow}>
+                            {(() => {
+                              const AccessoriesIcon = getGarmentIllustration(recommendation.accessories);
+                              return <AccessoriesIcon size={50} color={illustrationColor} />;
+                            })()}
+                            <View style={styles.recommendationTextContainer}>
+                              <ThemedText style={styles.recommendationLabel}>Accessories</ThemedText>
+                              <ThemedText style={styles.recommendationText}>{recommendation.accessories}</ThemedText>
+                            </View>
+                          </View>
                         </View>
 
                         <View style={styles.recommendationItem}>
-                          <ThemedText style={styles.recommendationLabel}>Footwear</ThemedText>
-                          <ThemedText style={styles.recommendationText}>{recommendation.footwear}</ThemedText>
+                          <View style={styles.recommendationRow}>
+                            {(() => {
+                              const FootwearIcon = getGarmentIllustration(recommendation.footwear);
+                              return <FootwearIcon size={50} color={illustrationColor} />;
+                            })()}
+                            <View style={styles.recommendationTextContainer}>
+                              <ThemedText style={styles.recommendationLabel}>Footwear</ThemedText>
+                              <ThemedText style={styles.recommendationText}>{recommendation.footwear}</ThemedText>
+                            </View>
+                          </View>
                         </View>
                       </>
                     );
@@ -206,27 +240,34 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   divider: {
-    marginVertical: 24,
+    marginVertical: 16,
     backgroundColor: Colors.light.border,
     height: 0.5,
   },
   tempContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 20,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  tempTextContainer: {
+    alignItems: 'flex-start',
+    gap: 2,
   },
   temperature: {
-    fontSize: 72,
+    fontSize: 48,
     fontWeight: '200',
-    lineHeight: 80,
-    letterSpacing: -2,
+    lineHeight: 52,
+    letterSpacing: -1,
   },
   description: {
     ...Typography.body,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '300',
-    marginTop: 12,
     textTransform: 'capitalize',
     letterSpacing: 0.5,
+    opacity: 0.7,
   },
   detailsContainer: {
     gap: 18,
@@ -279,6 +320,15 @@ const styles = StyleSheet.create({
   },
   recommendationItem: {
     gap: 8,
+  },
+  recommendationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recommendationTextContainer: {
+    flex: 1,
+    gap: 6,
   },
   recommendationLabel: {
     ...Typography.caption,
