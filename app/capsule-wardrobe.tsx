@@ -9,6 +9,8 @@ import {
 import { Card, Divider, Button, SegmentedButtons } from 'react-native-paper';
 import { useState, useEffect } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -94,6 +96,8 @@ export default function CapsuleWardrobeScreen() {
   const [savedCapsules, setSavedCapsules] = useState<Capsule[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const [showOutfitModal, setShowOutfitModal] = useState(false);
+  const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
 
   useEffect(() => {
     loadSavedCapsules();
@@ -174,6 +178,16 @@ export default function CapsuleWardrobeScreen() {
 
     await saveCapsule(capsuleToSave);
     await loadSavedCapsules();
+  };
+
+  const handleOpenOutfit = (outfit: Outfit) => {
+    setSelectedOutfit(outfit);
+    setShowOutfitModal(true);
+  };
+
+  const handleCloseOutfitModal = () => {
+    setShowOutfitModal(false);
+    setSelectedOutfit(null);
   };
 
   const filteredOutfits = outfits.filter((outfit) => {
@@ -304,6 +318,7 @@ export default function CapsuleWardrobeScreen() {
                       <OutfitCard
                         outfit={outfit}
                         onToggleFavorite={() => handleToggleFavorite(outfit.id)}
+                        onPress={() => handleOpenOutfit(outfit)}
                       />
                     </View>
                   ))}
@@ -347,6 +362,39 @@ export default function CapsuleWardrobeScreen() {
                 });
               });
 
+              const handleUnsaveOutfit = async (outfitId: string) => {
+                // Find the capsule that contains this outfit
+                const capsule = savedCapsules.find((c) =>
+                  c.favoriteOutfits.some((f) => f.outfitId === outfitId)
+                );
+
+                if (!capsule) return;
+
+                // Remove the outfit from the capsule's favorites
+                const updatedFavorites = capsule.favoriteOutfits.filter(
+                  (f) => f.outfitId !== outfitId
+                );
+
+                // Update the capsule
+                const updatedCapsule: Capsule = {
+                  ...capsule,
+                  favoriteOutfits: updatedFavorites,
+                };
+
+                // Save the updated capsule
+                await saveCapsule(updatedCapsule);
+                await loadSavedCapsules();
+
+                // If this outfit is in the current outfits list, update it
+                if (outfits.some((o) => o.id === outfitId)) {
+                  setOutfits((prev) =>
+                    prev.map((outfit) =>
+                      outfit.id === outfitId ? { ...outfit, isFavorite: false } : outfit
+                    )
+                  );
+                }
+              };
+
               return savedOutfits.length > 0 ? (
                 <>
                   <ThemedText style={styles.libraryCount}>
@@ -358,7 +406,8 @@ export default function CapsuleWardrobeScreen() {
                       <View key={outfit.id} style={styles.outfitGridItem}>
                         <OutfitCard
                           outfit={outfit}
-                          onToggleFavorite={() => {}}
+                          onToggleFavorite={() => handleUnsaveOutfit(outfit.id)}
+                          onPress={() => handleOpenOutfit(outfit)}
                         />
                       </View>
                     ))}
@@ -377,6 +426,51 @@ export default function CapsuleWardrobeScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Outfit Detail Modal */}
+      <Modal visible={showOutfitModal} transparent animationType="fade">
+        <View style={styles.outfitModalOverlay}>
+          <Pressable style={styles.outfitModalBackdrop} onPress={handleCloseOutfitModal} />
+          <View style={styles.outfitModalContent}>
+            {selectedOutfit && (
+              <>
+                <View style={styles.outfitModalHeader}>
+                  <ThemedText style={styles.outfitModalTitle}>
+                    {selectedOutfit.isDressOutfit ? 'Dress Outfit' : 'Outfit'}
+                  </ThemedText>
+                  <Pressable onPress={handleCloseOutfitModal} hitSlop={8}>
+                    <MaterialCommunityIcons name="close" size={28} color={Colors.light.icon} />
+                  </Pressable>
+                </View>
+
+                <ScrollView style={styles.outfitModalScroll} showsVerticalScrollIndicator={false}>
+                  <View style={styles.outfitItemsGrid}>
+                    {selectedOutfit.items.map((item) => (
+                      <View key={item.id} style={styles.outfitModalItem}>
+                        <Image
+                          source={{ uri: item.imageUri }}
+                          style={styles.outfitModalImage}
+                          contentFit="cover"
+                        />
+                        <View style={styles.outfitModalItemInfo}>
+                          <View style={styles.outfitModalCategoryBadge}>
+                            <ThemedText style={styles.outfitModalCategoryText}>
+                              {item.category.toUpperCase()}
+                            </ThemedText>
+                          </View>
+                          {item.name && (
+                            <ThemedText style={styles.outfitModalItemName}>{item.name}</ThemedText>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Category Selection Modal */}
       <Modal visible={showCategoryModal} transparent animationType="slide">
@@ -597,5 +691,78 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     marginTop: 16,
+  },
+  outfitModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  outfitModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  outfitModalContent: {
+    width: '90%',
+    maxHeight: '85%',
+    backgroundColor: Colors.light.surface,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  outfitModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  outfitModalTitle: {
+    ...Typography.heading,
+    fontSize: 24,
+    fontWeight: '300',
+    letterSpacing: 0.5,
+  },
+  outfitModalScroll: {
+    maxHeight: 500,
+  },
+  outfitItemsGrid: {
+    padding: 20,
+    gap: 16,
+  },
+  outfitModalItem: {
+    marginBottom: 16,
+  },
+  outfitModalImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  outfitModalItemInfo: {
+    marginTop: 12,
+  },
+  outfitModalCategoryBadge: {
+    backgroundColor: Colors.light.tint + '20',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  outfitModalCategoryText: {
+    ...Typography.caption,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: Colors.light.tint,
+    fontWeight: '500',
+  },
+  outfitModalItemName: {
+    ...Typography.body,
+    fontSize: 16,
+    fontWeight: '300',
   },
 });

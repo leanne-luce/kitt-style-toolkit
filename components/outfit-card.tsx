@@ -8,21 +8,60 @@ import { Colors, Typography } from '@/constants/theme';
 interface OutfitCardProps {
   outfit: Outfit;
   onToggleFavorite: () => void;
+  onPress?: () => void;
 }
 
-export function OutfitCard({ outfit, onToggleFavorite }: OutfitCardProps) {
+export function OutfitCard({ outfit, onToggleFavorite, onPress }: OutfitCardProps) {
+  const getCollageLayout = (count: number) => {
+    switch (count) {
+      case 1:
+        return [{ width: '100%' as const, height: '100%' as const, top: 0, left: 0, zIndex: 1 }];
+      case 2:
+        return [
+          { width: '65%' as const, height: '70%' as const, top: 0, left: 0, zIndex: 2 },
+          { width: '55%' as const, height: '60%' as const, top: '35%' as const, left: '40%' as const, zIndex: 1 },
+        ];
+      case 3:
+        return [
+          { width: '55%' as const, height: '60%' as const, top: 0, left: 0, zIndex: 2 },
+          { width: '50%' as const, height: '55%' as const, top: '15%' as const, left: '45%' as const, zIndex: 3 },
+          { width: '45%' as const, height: '50%' as const, top: '45%' as const, left: '10%' as const, zIndex: 1 },
+        ];
+      case 4:
+        return [
+          { width: '50%' as const, height: '55%' as const, top: 0, left: 0, zIndex: 3 },
+          { width: '45%' as const, height: '50%' as const, top: '10%' as const, left: '50%' as const, zIndex: 2 },
+          { width: '40%' as const, height: '45%' as const, top: '50%' as const, left: '5%' as const, zIndex: 1 },
+          { width: '42%' as const, height: '47%' as const, top: '48%' as const, left: '53%' as const, zIndex: 4 },
+        ];
+      default:
+        return [
+          { width: '48%' as const, height: '50%' as const, top: 0, left: 0, zIndex: 3 },
+          { width: '42%' as const, height: '45%' as const, top: '8%' as const, left: '52%' as const, zIndex: 2 },
+          { width: '38%' as const, height: '42%' as const, top: '52%' as const, left: '8%' as const, zIndex: 1 },
+          { width: '40%' as const, height: '44%' as const, top: '50%' as const, left: '55%' as const, zIndex: 4 },
+          { width: '35%' as const, height: '38%' as const, top: '28%' as const, left: '28%' as const, zIndex: 5 },
+        ];
+    }
+  };
+
+  const layouts = getCollageLayout(outfit.items.length);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.imageGrid}>
-        {outfit.items.map((item) => (
+    <Pressable onPress={onPress} style={styles.container}>
+      <View style={styles.collageContainer}>
+        {outfit.items.slice(0, 5).map((item, index) => (
           <View
             key={item.id}
             style={[
-              styles.imageWrapper,
-              outfit.items.length === 1 && styles.singleImage,
-              outfit.items.length === 2 && styles.twoImages,
-              outfit.items.length === 3 && styles.threeImages,
-              outfit.items.length >= 4 && styles.fourPlusImages,
+              styles.collageImage,
+              {
+                width: layouts[index].width,
+                height: layouts[index].height,
+                top: layouts[index].top,
+                left: layouts[index].left,
+                zIndex: layouts[index].zIndex,
+              },
             ]}>
             <Image source={{ uri: item.imageUri }} style={styles.image} contentFit="cover" />
           </View>
@@ -39,7 +78,12 @@ export function OutfitCard({ outfit, onToggleFavorite }: OutfitCardProps) {
           <ThemedText style={styles.itemCount}>{outfit.items.length} items</ThemedText>
         </View>
 
-        <Pressable onPress={onToggleFavorite} hitSlop={8}>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          hitSlop={8}>
           <MaterialCommunityIcons
             name={outfit.isFavorite ? 'heart' : 'heart-outline'}
             size={24}
@@ -47,7 +91,7 @@ export function OutfitCard({ outfit, onToggleFavorite }: OutfitCardProps) {
           />
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -59,30 +103,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
   },
-  imageGrid: {
+  collageContainer: {
     aspectRatio: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    position: 'relative',
+    backgroundColor: '#f8f8f8',
   },
-  imageWrapper: {
-    borderWidth: 0.5,
-    borderColor: Colors.light.border,
-  },
-  singleImage: {
-    width: '100%',
-    height: '100%',
-  },
-  twoImages: {
-    width: '50%',
-    height: '100%',
-  },
-  threeImages: {
-    width: '50%',
-    height: '50%',
-  },
-  fourPlusImages: {
-    width: '50%',
-    height: '50%',
+  collageImage: {
+    position: 'absolute',
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   image: {
     width: '100%',
