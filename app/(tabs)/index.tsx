@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
-import { StyleSheet, Pressable, View } from 'react-native';
-import { Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Card } from 'react-native-paper';
 
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
 
 export default function HomeScreen() {
@@ -24,10 +23,14 @@ export default function HomeScreen() {
           <View style={styles.headerOverlay} />
         </View>
       }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title" style={styles.title}>Kitted AI</ThemedText>
-      </ThemedView>
-      <ThemedText style={styles.tagline}>Your style toolkit.</ThemedText>
+      <View style={styles.brandContainer}>
+        <Image
+          source={require('@/assets/images/kitt-logo.png')}
+          style={styles.logo}
+          contentFit="contain"
+        />
+        <ThemedText style={styles.tagline}>Your style toolkit</ThemedText>
+      </View>
 
       <View style={styles.cardsContainer}>
         <Pressable onPress={() => router.push('/style-horoscope')}>
@@ -44,6 +47,15 @@ export default function HomeScreen() {
             <Card.Content style={styles.cardContent}>
               <ThemedText style={styles.cardTitle}>Outfit Weather Report</ThemedText>
               <ThemedText style={styles.cardSubtitle}>Plan your look</ThemedText>
+            </Card.Content>
+          </Card>
+        </Pressable>
+
+        <Pressable onPress={() => router.push('/capsule-wardrobe')}>
+          <Card style={styles.card} elevation={0}>
+            <Card.Content style={styles.cardContent}>
+              <ThemedText style={styles.cardTitle}>Capsule Wardrobe</ThemedText>
+              <ThemedText style={styles.cardSubtitle}>Outfit generator</ThemedText>
             </Card.Content>
           </Card>
         </Pressable>
@@ -73,22 +85,23 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
-  titleContainer: {
-    paddingTop: 8,
-    paddingBottom: 16,
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 0,
+    marginBottom: 24,
+    gap: 10,
   },
-  title: {
-    ...Typography.title,
-    fontSize: 42,
-    fontWeight: '200',
-    letterSpacing: 2,
+  logo: {
+    width: 140,
+    height: 70,
   },
   tagline: {
     ...Typography.subtitle,
     fontSize: 13,
     letterSpacing: 2,
     opacity: 0.6,
-    marginBottom: 32,
+    flex: 1,
   },
   cardsContainer: {
     gap: 16,
