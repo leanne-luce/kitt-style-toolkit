@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -17,9 +18,15 @@ import { OutfitCard } from '@/components/outfit-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import { Capsule, ItemCategory, Outfit, WardrobeItem } from '@/types/capsule';
 import { getAllCapsules, saveCapsule } from '@/utils/capsule-storage';
 import { generateOutfits, getOutfitStats, validateWardrobe } from '@/utils/outfit-generator';
+import {
+  deleteWardrobeItem,
+  loadUserWardrobeItems,
+  saveWardrobeItem
+} from '@/utils/wardrobe-db';
 
 type ViewMode = 'builder' | 'outfits' | 'library';
 type OutfitFilter = 'all' | 'dress' | 'standard';
@@ -35,7 +42,7 @@ const sampleItems: WardrobeItem[] = [
   {
     id: 'sample_2',
     imageUri: require('@/assets/images/jcrew-sweater.avif'),
-    category: ItemCategory.TOP,
+    category: ItemCategory.OUTERWEAR,
     name: 'Wool Cardigan',
   },
   {
@@ -89,6 +96,7 @@ const sampleItems: WardrobeItem[] = [
 ];
 
 export default function CapsuleWardrobeScreen() {
+  const { user } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('builder');
   const [items, setItems] = useState<WardrobeItem[]>(sampleItems);
   const [outfits, setOutfits] = useState<Outfit[]>([]);
@@ -98,14 +106,37 @@ export default function CapsuleWardrobeScreen() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [showOutfitModal, setShowOutfitModal] = useState(false);
   const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Load wardrobe items when user logs in or component mounts
   useEffect(() => {
     loadSavedCapsules();
-  }, []);
+    if (user) {
+      loadUserWardrobe();
+    }
+  }, [user]);
 
   const loadSavedCapsules = async () => {
     const capsules = await getAllCapsules();
     setSavedCapsules(capsules);
+  };
+
+  const loadUserWardrobe = async () => {
+    if (!user) return;
+
+    try {
+      setIsLoading(true);
+      const userItems = await loadUserWardrobeItems();
+      if (userItems.length > 0) {
+        setItems(userItems);
+      }
+    } catch (error: any) {
+      console.error('Error loading wardrobe:', error);
+      Alert.alert('Error', 'Failed to load your wardrobe. Using sample items.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddItem = (slotIndex: number) => {
@@ -114,8 +145,24 @@ export default function CapsuleWardrobeScreen() {
   };
 
   const handleSelectCategory = async (category: ItemCategory) => {
+    console.log('handleSelectCategory called with:', category);
     setShowCategoryModal(false);
 
+    // Request permission to access media library
+    console.log('Requesting media library permissions...');
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    console.log('Permission status:', status);
+
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please allow access to your photo library to add wardrobe items.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    console.log('Launching image picker...');
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
@@ -123,23 +170,81 @@ export default function CapsuleWardrobeScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets[0] && selectedSlot !== null) {
-      const newItem: WardrobeItem = {
-        id: `item_${Date.now()}`,
-        imageUri: result.assets[0].uri,
-        category,
-      };
+    console.log('Image picker result:', result);
 
-      const newItems = [...items];
-      newItems[selectedSlot] = newItem;
-      setItems(newItems);
+    if (!result.canceled && result.assets[0] && selectedSlot !== null) {
+      const localUri = result.assets[0].uri;
+
+      // If user is authenticated, save to Supabase
+      if (user) {
+        try {
+          setIsSaving(true);
+
+          const savedItem = await saveWardrobeItem(
+            {
+              category,
+              name: `${category.charAt(0).toUpperCase() + category.slice(1)} Item`,
+            },
+            localUri,
+            selectedSlot
+          );
+
+          const newItems = [...items];
+          newItems[selectedSlot] = savedItem;
+          setItems(newItems);
+
+          Alert.alert('Success', 'Item saved to your wardrobe!');
+        } catch (error: any) {
+          console.error('Error saving item:', error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
+          Alert.alert(
+            'Error',
+            `Failed to save item: ${error.message || 'Unknown error'}\n\nCheck console for details.`
+          );
+        } finally {
+          setIsSaving(false);
+        }
+      } else {
+        // For non-authenticated users, just store locally
+        const newItem: WardrobeItem = {
+          id: `item_${Date.now()}`,
+          imageUri: localUri,
+          category,
+        };
+
+        const newItems = [...items];
+        newItems[selectedSlot] = newItem;
+        setItems(newItems);
+      }
     }
   };
 
-  const handleRemoveItem = (index: number) => {
-    const newItems = [...items];
-    newItems.splice(index, 1);
-    setItems(newItems);
+  const handleRemoveItem = async (index: number) => {
+    const item = items[index];
+
+    // If user is authenticated and item has an ID, delete from Supabase
+    if (user && item?.id && !item.id.startsWith('sample_')) {
+      try {
+        setIsSaving(true);
+        await deleteWardrobeItem(item.id);
+
+        const newItems = [...items];
+        newItems.splice(index, 1);
+        setItems(newItems);
+
+        Alert.alert('Success', 'Item removed from your wardrobe');
+      } catch (error: any) {
+        console.error('Error deleting item:', error);
+        Alert.alert('Error', 'Failed to remove item. Please try again.');
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      // For non-authenticated users or sample items, just remove locally
+      const newItems = [...items];
+      newItems.splice(index, 1);
+      setItems(newItems);
+    }
   };
 
   const handleGenerateOutfits = () => {
@@ -496,6 +601,18 @@ export default function CapsuleWardrobeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Loading Overlay */}
+      {(isLoading || isSaving) && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={Colors.light.tint} />
+            <ThemedText style={styles.loadingText}>
+              {isLoading ? 'Loading wardrobe...' : 'Saving...'}
+            </ThemedText>
+          </View>
+        </View>
+      )}
     </ThemedView>
   );
 }
@@ -764,5 +881,29 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontSize: 16,
     fontWeight: '300',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  loadingContent: {
+    backgroundColor: Colors.light.surface,
+    padding: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    ...Typography.body,
+    fontSize: 16,
+    fontWeight: '300',
+    color: Colors.light.text,
   },
 });
