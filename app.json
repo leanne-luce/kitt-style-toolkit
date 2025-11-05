@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "my-test-app",
-    "slug": "my-test-app",
+    "name": "Kitt Style Toolkit",
+    "slug": "kitt-style-toolkit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mytestapp",
+    "scheme": "kittstyletoolkit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
