@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
+import { File } from 'expo-file-system';
 
 /**
  * Upload an image to Supabase Storage
@@ -10,22 +9,33 @@ import { decode } from 'base64-arraybuffer';
  */
 export async function uploadWardrobeImage(uri: string, userId: string): Promise<string> {
   try {
-    // Read the file as base64
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    console.log('uploadWardrobeImage called with uri:', uri);
+    console.log('userId:', userId);
+
+    // Read the file using the new File API
+    console.log('Reading file...');
+    const file = new File(uri);
+
+    // Use bytes() method to read the file as a Uint8Array
+    console.log('Reading file as bytes...');
+    const bytes = await file.bytes();
+
+    if (!bytes || bytes.length === 0) {
+      throw new Error('Failed to read file - empty or null bytes');
+    }
+
+    console.log('File bytes length:', bytes.length);
 
     // Generate a unique filename
     const fileExt = uri.split('.').pop() || 'jpg';
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
+    console.log('Upload filename:', fileName);
 
-    // Convert base64 to ArrayBuffer
-    const arrayBuffer = decode(base64);
-
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage using the bytes directly
+    console.log('Uploading to Supabase...');
     const { data, error } = await supabase.storage
       .from('wardrobe-images')
-      .upload(fileName, arrayBuffer, {
+      .upload(fileName, bytes, {
         contentType: `image/${fileExt}`,
         upsert: false,
       });
@@ -35,11 +45,14 @@ export async function uploadWardrobeImage(uri: string, userId: string): Promise<
       throw new Error(`Failed to upload image: ${error.message}`);
     }
 
+    console.log('Upload successful, data:', data);
+
     // Get public URL
     const { data: publicUrlData } = supabase.storage
       .from('wardrobe-images')
       .getPublicUrl(data.path);
 
+    console.log('Public URL:', publicUrlData.publicUrl);
     return publicUrlData.publicUrl;
   } catch (error) {
     console.error('Error uploading image:', error);

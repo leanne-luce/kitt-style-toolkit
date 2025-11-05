@@ -43,8 +43,8 @@ export function ItemSlot({ item, slotNumber, onPress, onRemove }: ItemSlotProps)
         style={styles.image}
         contentFit="cover"
       />
-      <View style={styles.overlay}>
-        <View style={styles.categoryBadge}>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.categoryBadge} pointerEvents="none">
           <ThemedText style={styles.categoryText}>
             {categoryLabels[item.category]}
           </ThemedText>
@@ -60,7 +60,11 @@ export function ItemSlot({ item, slotNumber, onPress, onRemove }: ItemSlotProps)
           </Pressable>
         )}
       </View>
-      {item.name && <ThemedText style={styles.itemName}>{item.name}</ThemedText>}
+      {item.name && (
+        <View style={styles.itemNameContainer} pointerEvents="none">
+          <ThemedText style={styles.itemName}>{item.name}</ThemedText>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -125,14 +129,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     opacity: 0.4,
   },
-  itemName: {
+  itemNameContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    color: '#fff',
     padding: 6,
+  },
+  itemName: {
+    color: '#fff',
     fontSize: 10,
     textAlign: 'center',
   },

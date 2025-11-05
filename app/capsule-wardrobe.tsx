@@ -72,8 +72,8 @@ const sampleItems: WardrobeItem[] = [
   {
     id: 'sample_7',
     imageUri: require('@/assets/images/jcrew-stripe-turtleneck.avif'),
-    category: ItemCategory.DRESS,
-    name: 'Striped Dress',
+    category: ItemCategory.TOP,
+    name: 'Striped Turtleneck',
   },
   {
     id: 'sample_8',
@@ -128,7 +128,28 @@ export default function CapsuleWardrobeScreen() {
     try {
       setIsLoading(true);
       const userItems = await loadUserWardrobeItems();
-      if (userItems.length > 0) {
+
+      if (userItems.length === 0) {
+        // First time user - save sample items to their wardrobe
+        setItems(sampleItems);
+
+        // Save sample items to database in the background
+        Promise.all(
+          sampleItems.map((item, index) =>
+            saveWardrobeItem(
+              {
+                category: item.category,
+                name: item.name,
+                imageUri: item.imageUri,
+              },
+              undefined,
+              index
+            )
+          )
+        ).catch((error) => {
+          console.error('Error saving sample items:', error);
+        });
+      } else {
         setItems(userItems);
       }
     } catch (error: any) {
@@ -139,71 +160,92 @@ export default function CapsuleWardrobeScreen() {
     }
   };
 
-  const handleAddItem = (slotIndex: number) => {
-    setSelectedSlot(slotIndex);
-    setShowCategoryModal(true);
+  const handleAddItem = async (slotIndex: number) => {
+    try {
+      // Check permission status first without requesting
+      const { status: currentStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+
+      if (currentStatus !== 'granted') {
+        // Only request if not already granted
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission Required',
+            'Please allow access to your photo library to add wardrobe items.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
+      // Launch image picker immediately
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const localUri = result.assets[0].uri;
+
+        // Show category selection modal after image is selected
+        setSelectedSlot(slotIndex);
+        setShowCategoryModal(true);
+
+        // Store the selected image URI temporarily
+        // We'll use it when they select a category
+        (window as any).tempImageUri = localUri;
+      }
+    } catch (error: any) {
+      console.error('Unexpected error in handleAddItem:', error);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    }
   };
 
   const handleSelectCategory = async (category: ItemCategory) => {
     console.log('handleSelectCategory called with:', category);
+    console.log('selectedSlot:', selectedSlot);
+
     setShowCategoryModal(false);
 
-    // Request permission to access media library
-    console.log('Requesting media library permissions...');
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    console.log('Permission status:', status);
+    const localUri = (window as any).tempImageUri;
+    delete (window as any).tempImageUri;
 
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Please allow access to your photo library to add wardrobe items.',
-        [{ text: 'OK' }]
-      );
+    if (!localUri || selectedSlot === null) {
+      Alert.alert('Error', 'No image selected. Please try again.');
+      setSelectedSlot(null);
       return;
     }
 
-    console.log('Launching image picker...');
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    console.log('Image picker result:', result);
-
-    if (!result.canceled && result.assets[0] && selectedSlot !== null) {
-      const localUri = result.assets[0].uri;
-
+    try {
       // If user is authenticated, save to Supabase
       if (user) {
-        try {
-          setIsSaving(true);
+        setIsSaving(true);
 
-          const savedItem = await saveWardrobeItem(
-            {
-              category,
-              name: `${category.charAt(0).toUpperCase() + category.slice(1)} Item`,
-            },
-            localUri,
-            selectedSlot
-          );
+        // Check if there's an existing item in this slot
+        const existingItem = items[selectedSlot];
 
-          const newItems = [...items];
-          newItems[selectedSlot] = savedItem;
-          setItems(newItems);
-
-          Alert.alert('Success', 'Item saved to your wardrobe!');
-        } catch (error: any) {
-          console.error('Error saving item:', error);
-          console.error('Error details:', JSON.stringify(error, null, 2));
-          Alert.alert(
-            'Error',
-            `Failed to save item: ${error.message || 'Unknown error'}\n\nCheck console for details.`
-          );
-        } finally {
-          setIsSaving(false);
+        // If there's an existing item and it's not a local-only sample, delete it first
+        if (existingItem?.id && !existingItem.id.startsWith('sample_')) {
+          await deleteWardrobeItem(existingItem.id);
         }
+
+        const savedItem = await saveWardrobeItem(
+          {
+            category,
+            name: `${category.charAt(0).toUpperCase() + category.slice(1)} Item`,
+          },
+          localUri,
+          selectedSlot
+        );
+
+        const newItems = [...items];
+        newItems[selectedSlot] = savedItem;
+        setItems(newItems);
+
+        Alert.alert('Success', 'Item saved to your wardrobe!');
       } else {
         // For non-authenticated users, just store locally
         const newItem: WardrobeItem = {
@@ -216,6 +258,16 @@ export default function CapsuleWardrobeScreen() {
         newItems[selectedSlot] = newItem;
         setItems(newItems);
       }
+    } catch (error: any) {
+      console.error('Error saving item:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      Alert.alert(
+        'Error',
+        `Failed to save item: ${error.message || 'Unknown error'}\n\nCheck console for details.`
+      );
+    } finally {
+      setIsSaving(false);
+      setSelectedSlot(null);
     }
   };
 
