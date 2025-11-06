@@ -50,15 +50,6 @@ export default function HomeScreen() {
             </Card.Content>
           </Card>
         </Pressable>
-
-        <Pressable onPress={() => router.push('/capsule-wardrobe')}>
-          <Card style={styles.card} elevation={0}>
-            <Card.Content style={styles.cardContent}>
-              <ThemedText style={styles.cardTitle}>Capsule Wardrobe</ThemedText>
-              <ThemedText style={styles.cardSubtitle}>Outfit generator</ThemedText>
-            </Card.Content>
-          </Card>
-        </Pressable>
       </View>
     </ParallaxScrollView>
   );
