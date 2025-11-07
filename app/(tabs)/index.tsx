@@ -50,6 +50,15 @@ export default function HomeScreen() {
             </Card.Content>
           </Card>
         </Pressable>
+
+        <Pressable onPress={() => router.push('/vogue-archive-search')}>
+          <Card style={styles.card} elevation={0}>
+            <Card.Content style={styles.cardContent}>
+              <ThemedText style={styles.cardTitle}>Vogue Archive Search</ThemedText>
+              <ThemedText style={styles.cardSubtitle}>Explore fashion history</ThemedText>
+            </Card.Content>
+          </Card>
+        </Pressable>
       </View>
     </ParallaxScrollView>
   );

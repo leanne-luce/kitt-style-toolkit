@@ -1,10 +1,19 @@
-import { useState } from 'react';
-import { StyleSheet, ScrollView, View, Alert } from 'react-native';
+import { useState, useEffect } from 'react';
+import { StyleSheet, ScrollView, View, Alert, Pressable, ActivityIndicator } from 'react-native';
 import { Card, Button, TextInput } from 'react-native-paper';
+import { Image } from 'expo-image';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { UserProfile } from '@/types/profile';
+import {
+  getUserProfile,
+  upsertUserProfile,
+  uploadProfileImage,
+  pickProfileImage,
+} from '@/utils/profile-storage';
 
 export default function ProfileScreen() {
   const { user, loading, signIn, signUp, signOut } = useAuth();
@@ -12,6 +21,103 @@ export default function ProfileScreen() {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Profile state
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+
+  // Load profile when user is authenticated
+  useEffect(() => {
+    if (user) {
+      loadProfile();
+    }
+  }, [user]);
+
+  const loadProfile = async () => {
+    if (!user) return;
+
+    setIsLoadingProfile(true);
+    try {
+      const userProfile = await getUserProfile(user.id);
+      if (userProfile) {
+        setProfile(userProfile);
+        setFirstName(userProfile.first_name);
+        setLastName(userProfile.last_name);
+        setProfileImageUri(userProfile.profile_image_url || null);
+      } else {
+        // No profile yet, enable edit mode
+        setIsEditMode(true);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const uri = await pickProfileImage();
+      if (uri) {
+        setProfileImageUri(uri);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to pick image');
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Error', 'Please enter your first and last name');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let imageUrl = profile?.profile_image_url;
+
+      // Upload new image if selected
+      if (profileImageUri && profileImageUri !== profile?.profile_image_url) {
+        imageUrl = await uploadProfileImage(user.id, profileImageUri);
+      }
+
+      // Save profile
+      const updatedProfile = await upsertUserProfile(
+        user.id,
+        firstName.trim(),
+        lastName.trim(),
+        imageUrl || undefined
+      );
+
+      setProfile(updatedProfile);
+      setIsEditMode(false);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (profile) {
+      setFirstName(profile.first_name);
+      setLastName(profile.last_name);
+      setProfileImageUri(profile.profile_image_url || null);
+    } else {
+      setFirstName('');
+      setLastName('');
+      setProfileImageUri(null);
+    }
+    setIsEditMode(false);
+  };
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -66,34 +172,136 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
 
-          <Card style={styles.card} elevation={2}>
-            <Card.Content style={styles.cardContent}>
-              <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+          {isLoadingProfile ? (
+            <Card style={styles.card} elevation={2}>
+              <Card.Content style={styles.cardContent}>
+                <ActivityIndicator size="large" color={Colors.light.tint} />
+                <ThemedText style={styles.loadingText}>Loading profile...</ThemedText>
+              </Card.Content>
+            </Card>
+          ) : (
+            <>
+              <Card style={styles.card} elevation={2}>
+                <Card.Content style={styles.cardContent}>
+                  <View style={styles.profileHeader}>
+                    <ThemedText style={styles.sectionTitle}>Personal Info</ThemedText>
+                    {!isEditMode && profile && (
+                      <Button
+                        mode="text"
+                        onPress={() => setIsEditMode(true)}
+                        textColor={Colors.light.tint}
+                        compact>
+                        Edit
+                      </Button>
+                    )}
+                  </View>
 
-              <View style={styles.infoRow}>
-                <ThemedText style={styles.label}>Email:</ThemedText>
-                <ThemedText style={styles.value}>{user.email}</ThemedText>
-              </View>
+                  {/* Profile Image */}
+                  <View style={styles.imageSection}>
+                    <Pressable
+                      onPress={isEditMode ? handlePickImage : undefined}
+                      style={styles.imageContainer}>
+                      {profileImageUri ? (
+                        <Image source={{ uri: profileImageUri }} style={styles.profileImage} contentFit="cover" />
+                      ) : (
+                        <View style={styles.placeholderImage}>
+                          <MaterialCommunityIcons name="account" size={60} color={Colors.light.icon} />
+                        </View>
+                      )}
+                      {isEditMode && (
+                        <View style={styles.imageOverlay}>
+                          <MaterialCommunityIcons name="camera" size={32} color="#fff" />
+                        </View>
+                      )}
+                    </Pressable>
+                    {isEditMode && (
+                      <ThemedText style={styles.imageHint}>Tap to change photo</ThemedText>
+                    )}
+                  </View>
 
-              <Button
-                mode="contained"
-                onPress={handleSignOut}
-                style={styles.signOutButton}
-                buttonColor={Colors.light.tint}>
-                Sign Out
-              </Button>
-            </Card.Content>
-          </Card>
+                  {/* Name Fields */}
+                  {isEditMode ? (
+                    <>
+                      <TextInput
+                        label="First Name"
+                        value={firstName}
+                        onChangeText={setFirstName}
+                        mode="outlined"
+                        style={styles.input}
+                        outlineColor={Colors.light.border}
+                        activeOutlineColor={Colors.light.tint}
+                      />
+                      <TextInput
+                        label="Last Name"
+                        value={lastName}
+                        onChangeText={setLastName}
+                        mode="outlined"
+                        style={styles.input}
+                        outlineColor={Colors.light.border}
+                        activeOutlineColor={Colors.light.tint}
+                      />
 
-          <Card style={styles.card} elevation={2}>
-            <Card.Content style={styles.cardContent}>
-              <ThemedText style={styles.sectionTitle}>About Kitt Style Toolkit</ThemedText>
-              <ThemedText style={styles.aboutText}>
-                Your personal style companion featuring daily style inspiration, outfit weather reports,
-                and a capsule wardrobe builder.
-              </ThemedText>
-            </Card.Content>
-          </Card>
+                      <View style={styles.buttonRow}>
+                        <Button
+                          mode="outlined"
+                          onPress={handleCancelEdit}
+                          disabled={isSaving}
+                          style={styles.cancelButton}
+                          textColor={Colors.light.tint}>
+                          Cancel
+                        </Button>
+                        <Button
+                          mode="contained"
+                          onPress={handleSaveProfile}
+                          loading={isSaving}
+                          disabled={isSaving}
+                          style={styles.saveButton}
+                          buttonColor={Colors.light.tint}>
+                          Save
+                        </Button>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {profile ? (
+                        <>
+                          <View style={styles.infoRow}>
+                            <ThemedText style={styles.label}>Name:</ThemedText>
+                            <ThemedText style={styles.value}>
+                              {firstName} {lastName}
+                            </ThemedText>
+                          </View>
+                        </>
+                      ) : (
+                        <ThemedText style={styles.noProfileText}>
+                          Complete your profile to personalize your experience
+                        </ThemedText>
+                      )}
+                    </>
+                  )}
+                </Card.Content>
+              </Card>
+
+              <Card style={styles.card} elevation={2}>
+                <Card.Content style={styles.cardContent}>
+                  <ThemedText style={styles.sectionTitle}>Account</ThemedText>
+
+                  <View style={styles.infoRow}>
+                    <ThemedText style={styles.label}>Email:</ThemedText>
+                    <ThemedText style={styles.value}>{user.email}</ThemedText>
+                  </View>
+
+                  <Button
+                    mode="contained"
+                    onPress={handleSignOut}
+                    style={styles.signOutButton}
+                    buttonColor={Colors.light.tint}>
+                    Sign Out
+                  </Button>
+                </Card.Content>
+              </Card>
+            </>
+          )}
         </ScrollView>
       </ThemedView>
     );
@@ -260,5 +468,76 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '300',
     opacity: 0.7,
+  },
+  loadingText: {
+    ...Typography.body,
+    textAlign: 'center',
+    marginTop: 16,
+    opacity: 0.6,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  imageSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  imageContainer: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageHint: {
+    ...Typography.caption,
+    fontSize: 11,
+    opacity: 0.5,
+    textAlign: 'center',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelButton: {
+    flex: 1,
+    borderColor: Colors.light.tint,
+  },
+  saveButton: {
+    flex: 1,
+  },
+  noProfileText: {
+    ...Typography.body,
+    fontSize: 14,
+    fontWeight: '300',
+    opacity: 0.6,
+    textAlign: 'center',
+    paddingVertical: 16,
   },
 });
