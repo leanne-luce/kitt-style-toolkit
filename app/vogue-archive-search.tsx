@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { StyleSheet, ScrollView, View, ActivityIndicator, Alert } from 'react-native';
 import { Card, Searchbar, Button } from 'react-native-paper';
+import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
 
-// TODO: Replace with your Render API URL after deployment
-const API_URL = 'https://your-app.onrender.com';
+const API_URL = 'https://vogue-archive-api.onrender.com';
 
 interface SearchResult {
   id: string;
@@ -95,14 +95,6 @@ export default function VogueArchiveSearchScreen() {
               Search
             </Button>
 
-            {API_URL === 'https://your-app.onrender.com' && (
-              <View style={styles.setupNote}>
-                <ThemedText style={styles.setupText}>
-                  To enable search, deploy the backend API and update the API_URL in this file.
-                  See vogue-archive-backend/README.md for setup instructions.
-                </ThemedText>
-              </View>
-            )}
           </Card.Content>
         </Card>
 
@@ -122,6 +114,14 @@ export default function VogueArchiveSearchScreen() {
             </ThemedText>
             {results.map((result) => (
               <Card key={result.id} style={styles.resultCard} elevation={2}>
+                {result.metadata.image_url && (
+                  <Image
+                    source={{ uri: result.metadata.image_url }}
+                    style={styles.resultImage}
+                    contentFit="contain"
+                    transition={200}
+                  />
+                )}
                 <Card.Content style={styles.resultContent}>
                   <View style={styles.resultHeader}>
                     <ThemedText style={styles.resultDate}>
@@ -243,6 +243,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border,
     marginBottom: 12,
+    overflow: 'hidden',
+  },
+  resultImage: {
+    width: '100%',
+    height: 300,
+    backgroundColor: Colors.light.border,
   },
   resultContent: {
     padding: 20,
