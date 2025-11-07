@@ -56,21 +56,25 @@ class VogueArchiveSearch:
                 section = match['metadata'].get('section', '').lower()
 
                 if gender_preference == 'womens':
-                    # Only include if section explicitly contains 'women' or 'womenswear'
-                    # Exclude anything with 'men' unless it also has 'women'
-                    if 'men' in section and 'women' not in section:
-                        continue
-                    # If section is empty or unclear, prefer items with 'women' in section
-                    if section and 'women' not in section and 'womenswear' not in section:
-                        # Skip items that don't have clear women's fashion indicators
-                        continue
+                    # Include explicit womenswear
+                    if 'women' in section or 'womenswear' in section:
+                        pass  # Include it
+                    # Exclude explicit menswear
+                    elif 'menswear' in section or "men's" in section or section.startswith('men '):
+                        continue  # Exclude it
+                    # Include neutral/empty sections
+                    else:
+                        pass
                 elif gender_preference == 'mens':
-                    # Only include if section contains 'men' or 'menswear'
-                    # Exclude anything with 'women' unless it also has 'men'
-                    if 'women' in section and 'men' not in section:
-                        continue
-                    if not ('men' in section or 'menswear' in section):
-                        continue
+                    # Exclude explicit womenswear first
+                    if 'women' in section or 'womenswear' in section:
+                        continue  # Exclude it
+                    # Include explicit menswear
+                    elif 'menswear' in section or "men's" in section or section.startswith('men '):
+                        pass  # Include it
+                    # Include neutral/empty sections
+                    else:
+                        pass
 
             formatted_results.append({
                 'id': match['id'],

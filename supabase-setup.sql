@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   profile_image_url TEXT,
+  gender_preference TEXT CHECK (gender_preference IN ('womens', 'mens', 'both')),
+  birth_date TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Alert, Pressable, ActivityIndicator } from 'react-native';
-import { Card, Button, TextInput } from 'react-native-paper';
+import { Card, Button, TextInput, SegmentedButtons } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
@@ -27,6 +27,25 @@ export default function ProfileScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [genderPreference, setGenderPreference] = useState<'womens' | 'mens' | 'both'>('both');
+  const [birthDate, setBirthDate] = useState('');
+
+  // Format birth date with slashes as user types
+  const handleBirthDateChange = (text: string) => {
+    // Remove all non-numeric characters
+    const cleaned = text.replace(/\D/g, '');
+
+    // Format as MM/DD/YYYY
+    let formatted = cleaned;
+    if (cleaned.length >= 2) {
+      formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2);
+    }
+    if (cleaned.length >= 4) {
+      formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4) + '/' + cleaned.slice(4, 8);
+    }
+
+    setBirthDate(formatted);
+  };
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
@@ -49,6 +68,8 @@ export default function ProfileScreen() {
         setFirstName(userProfile.first_name);
         setLastName(userProfile.last_name);
         setProfileImageUri(userProfile.profile_image_url || null);
+        setGenderPreference(userProfile.gender_preference || 'both');
+        setBirthDate(userProfile.birth_date || '');
       } else {
         // No profile yet, enable edit mode
         setIsEditMode(true);
@@ -85,7 +106,8 @@ export default function ProfileScreen() {
 
       // Upload new image if selected
       if (profileImageUri && profileImageUri !== profile?.profile_image_url) {
-        imageUrl = await uploadProfileImage(user.id, profileImageUri);
+        const uploadedUrl = await uploadProfileImage(user.id, profileImageUri);
+        imageUrl = uploadedUrl || undefined;
       }
 
       // Save profile
@@ -93,7 +115,9 @@ export default function ProfileScreen() {
         user.id,
         firstName.trim(),
         lastName.trim(),
-        imageUrl || undefined
+        imageUrl || undefined,
+        genderPreference,
+        birthDate.trim() || undefined
       );
 
       setProfile(updatedProfile);
@@ -111,10 +135,14 @@ export default function ProfileScreen() {
       setFirstName(profile.first_name);
       setLastName(profile.last_name);
       setProfileImageUri(profile.profile_image_url || null);
+      setGenderPreference(profile.gender_preference || 'both');
+      setBirthDate(profile.birth_date || '');
     } else {
       setFirstName('');
       setLastName('');
       setProfileImageUri(null);
+      setGenderPreference('both');
+      setBirthDate('');
     }
     setIsEditMode(false);
   };
@@ -241,6 +269,46 @@ export default function ProfileScreen() {
                         activeOutlineColor={Colors.light.tint}
                       />
 
+                      <TextInput
+                        label="Birth Date (MM/DD/YYYY)"
+                        value={birthDate}
+                        onChangeText={handleBirthDateChange}
+                        mode="outlined"
+                        style={styles.input}
+                        outlineColor={Colors.light.border}
+                        activeOutlineColor={Colors.light.tint}
+                        placeholder="01/15/1990"
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+
+                      {/* Gender Preference */}
+                      <View style={styles.genderSection}>
+                        <ThemedText style={styles.genderLabel}>Fashion Preference</ThemedText>
+                        <SegmentedButtons
+                          value={genderPreference}
+                          onValueChange={(value) => setGenderPreference(value as 'womens' | 'mens' | 'both')}
+                          buttons={[
+                            {
+                              value: 'womens',
+                              label: "Women's",
+                              style: genderPreference === 'womens' ? { backgroundColor: Colors.light.tint } : {},
+                            },
+                            {
+                              value: 'mens',
+                              label: "Men's",
+                              style: genderPreference === 'mens' ? { backgroundColor: Colors.light.tint } : {},
+                            },
+                            {
+                              value: 'both',
+                              label: 'Both',
+                              style: genderPreference === 'both' ? { backgroundColor: Colors.light.tint } : {},
+                            },
+                          ]}
+                          style={styles.segmentedButtons}
+                        />
+                      </View>
+
                       <View style={styles.buttonRow}>
                         <Button
                           mode="outlined"
@@ -269,6 +337,18 @@ export default function ProfileScreen() {
                             <ThemedText style={styles.label}>Name:</ThemedText>
                             <ThemedText style={styles.value}>
                               {firstName} {lastName}
+                            </ThemedText>
+                          </View>
+                          {birthDate && (
+                            <View style={styles.infoRow}>
+                              <ThemedText style={styles.label}>Birth Date:</ThemedText>
+                              <ThemedText style={styles.value}>{birthDate}</ThemedText>
+                            </View>
+                          )}
+                          <View style={styles.infoRow}>
+                            <ThemedText style={styles.label}>Fashion Preference:</ThemedText>
+                            <ThemedText style={styles.value}>
+                              {genderPreference === 'womens' ? "Women's" : genderPreference === 'mens' ? "Men's" : 'Both'}
                             </ThemedText>
                           </View>
                         </>
@@ -539,5 +619,18 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     textAlign: 'center',
     paddingVertical: 16,
+  },
+  genderSection: {
+    marginBottom: 24,
+  },
+  genderLabel: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 1,
+    opacity: 0.5,
+    marginBottom: 12,
+  },
+  segmentedButtons: {
+    borderColor: Colors.light.border,
   },
 });

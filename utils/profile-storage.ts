@@ -35,11 +35,13 @@ export async function upsertUserProfile(
   userId: string,
   firstName: string,
   lastName: string,
-  profileImageUrl?: string
+  profileImageUrl?: string,
+  genderPreference?: 'womens' | 'mens' | 'both',
+  birthDate?: string
 ): Promise<UserProfile | null> {
   try {
     console.log('Upserting profile for user:', userId);
-    console.log('Profile data:', { firstName, lastName, profileImageUrl });
+    console.log('Profile data:', { firstName, lastName, profileImageUrl, genderPreference, birthDate });
 
     const now = new Date().toISOString();
     const profileData = {
@@ -47,6 +49,8 @@ export async function upsertUserProfile(
       first_name: firstName,
       last_name: lastName,
       profile_image_url: profileImageUrl,
+      gender_preference: genderPreference,
+      birth_date: birthDate,
       updated_at: now,
     };
 

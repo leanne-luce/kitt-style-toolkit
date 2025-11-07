@@ -5,6 +5,12 @@ Deploy to Render.com free tier
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+
+# Memory optimizations for free tier
+os.environ['TRANSFORMERS_CACHE'] = '/tmp'
+os.environ['HF_HOME'] = '/tmp'
+os.environ['TORCH_HOME'] = '/tmp'
+
 from search import VogueArchiveSearch
 
 app = Flask(__name__)
@@ -38,7 +44,8 @@ def search():
         "filters": {
             "year": 1950,
             "designer": "Christian Dior"
-        }
+        },
+        "gender_preference": "womens"
     }
     """
     try:
@@ -53,16 +60,19 @@ def search():
         query = data['query']
         top_k = data.get('top_k', 10)
         filters = data.get('filters', {})
+        gender_preference = data.get('gender_preference', 'both')
 
         # Perform search
         results = search_engine.search(
             query=query,
             top_k=top_k,
-            filters=filters
+            filters=filters,
+            gender_preference=gender_preference
         )
 
         return jsonify({
             'query': query,
+            'gender_preference': gender_preference,
             'results': results,
             'count': len(results)
         })

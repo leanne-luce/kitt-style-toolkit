@@ -11,6 +11,7 @@ import { getWeatherIllustration } from '@/components/illustrations/weather-illus
 import { getGarmentIllustration } from '@/components/illustrations/garment-illustrations';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Colors, Typography } from '@/constants/theme';
+import { saveCurrentWeather } from '@/utils/weather-storage';
 
 export default function OutfitWeatherReportScreen() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -45,6 +46,9 @@ export default function OutfitWeatherReportScreen() {
 
       setLocation(cityName);
       setWeather(weatherData);
+
+      // Save weather to storage for Vogue Archive to use
+      await saveCurrentWeather(weatherData);
     } catch (err) {
       console.error('Error loading weather:', err);
       setError('Failed to load weather data. Please try again.');

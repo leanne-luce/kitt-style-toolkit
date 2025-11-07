@@ -12,9 +12,11 @@ Follow these steps to set up your Supabase database and storage for the profile 
 6. Click **Run** to execute the SQL
 
 This will create:
-- The `profiles` table with columns for first_name, last_name, and profile_image_url
+- The `profiles` table with columns for first_name, last_name, profile_image_url, and gender_preference
 - Row Level Security (RLS) policies so users can only access their own profile
 - An automatic updated_at trigger
+
+**If you already have the profiles table:** Run `supabase-migration-gender-preference.sql` instead to add the gender_preference column to your existing table.
 
 ## 2. Create the Storage Bucket
 
