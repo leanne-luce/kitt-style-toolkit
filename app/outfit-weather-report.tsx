@@ -11,6 +11,8 @@ import { getWeatherIllustration } from '@/components/illustrations/weather-illus
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Colors, Typography, Fonts } from '@/constants/theme';
 import { saveCurrentWeather, saveCurrentOutfit } from '@/utils/weather-storage';
+import { getLunarPhase } from '@/utils/lunar-phase';
+import { lunarIllustrations } from '@/components/illustrations/lunar-illustrations';
 
 export default function OutfitWeatherReportScreen() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -121,6 +123,22 @@ export default function OutfitWeatherReportScreen() {
                   <View style={styles.detailRow}>
                     <ThemedText style={styles.detailLabel}>Wind Speed</ThemedText>
                     <ThemedText style={styles.detailValue}>{weather.windSpeed} mph</ThemedText>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <ThemedText style={styles.detailLabel}>Lunar Phase</ThemedText>
+                    <View style={styles.lunarPhaseValue}>
+                      {(() => {
+                        const lunarPhase = getLunarPhase();
+                        const LunarIcon = lunarIllustrations[lunarPhase.illustrationKey];
+                        return (
+                          <>
+                            <LunarIcon size={24} color={illustrationColor} />
+                            <ThemedText style={styles.detailValue}>{lunarPhase.name}</ThemedText>
+                          </>
+                        );
+                      })()}
+                    </View>
                   </View>
                 </View>
               </Card.Content>
@@ -319,6 +337,11 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontSize: 16,
     fontWeight: '400',
+  },
+  lunarPhaseValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   errorText: {
     ...Typography.body,

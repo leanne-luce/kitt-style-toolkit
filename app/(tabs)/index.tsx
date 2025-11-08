@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, Dimensions } from 'react-native';
-import { Card, TextInput, Button, Divider } from 'react-native-paper';
-import { useState, useCallback, useEffect } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, Dimensions, Animated, Modal } from 'react-native';
+import { Card, TextInput, Button, IconButton } from 'react-native-paper';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -15,13 +15,15 @@ import { illustrations, IllustrationType } from '@/components/illustrations/fash
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuth } from '@/contexts/auth-context';
 import { getUserProfile, upsertUserProfile } from '@/utils/profile-storage';
-import { getZodiacSign, getZodiacInfo, ZodiacSign } from '@/utils/zodiac';
+import { getZodiacSign, ZodiacSign } from '@/utils/zodiac';
 import { getDailyZodiacPrompt } from '@/utils/daily-zodiac-prompt';
 import { getCurrentLocation, getCityFromCoords } from '@/services/location';
 import { getWeather, WeatherData } from '@/services/weather';
 import { getOutfitRecommendation } from '@/utils/outfit-recommendations';
 import { getWeatherIllustration } from '@/components/illustrations/weather-illustrations';
 import { saveCurrentWeather, saveCurrentOutfit, saveCurrentHoroscope } from '@/utils/weather-storage';
+import { getLunarPhase } from '@/utils/lunar-phase';
+import { lunarIllustrations } from '@/components/illustrations/lunar-illustrations';
 
 const API_URL = 'https://vogue-archive-api.onrender.com';
 
@@ -76,7 +78,13 @@ export default function HomeScreen() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [genderPreference, setGenderPreference] = useState<'womens' | 'mens' | 'both'>('both');
+  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const illustrationColor = useThemeColor({}, 'text');
+
+  // Animation values for horoscope illustration
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
   // Format birth date with slashes as user types
   const handleBirthDateChange = (text: string) => {
@@ -89,6 +97,17 @@ export default function HomeScreen() {
       formatted = cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4) + '/' + cleaned.slice(4, 8);
     }
     setBirthDate(formatted);
+  };
+
+  // Modal handlers
+  const handleItemPress = (item: SearchResult) => {
+    setSelectedItem(item);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setSelectedItem(null);
   };
 
   // Load horoscope when screen is focused
@@ -116,13 +135,56 @@ export default function HomeScreen() {
     loadGenderPreference();
   }, [user]);
 
+  // Start illustration animation
+  useEffect(() => {
+    // Pulse animation (scale between 1 and 1.05)
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Rotation animation (rotate between -3 and 3 degrees)
+    const rotateAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: -1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulseAnimation.start();
+    rotateAnimation.start();
+
+    return () => {
+      pulseAnimation.stop();
+      rotateAnimation.stop();
+    };
+  }, []);
+
   const loadHoroscope = async () => {
     setLoading(true);
     try {
       // Get current date
       const today = new Date();
-      const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
-      const month = today.toLocaleDateString('en-US', { month: 'short' });
+      const weekday = today.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+      const month = today.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
       const day = today.getDate();
       setDateString(`${weekday}, ${month} ${day}`);
 
@@ -412,27 +474,50 @@ export default function HomeScreen() {
             style={styles.logo}
             contentFit="contain"
           />
-          <ThemedText style={styles.tagline}>{dateString}</ThemedText>
+          <ThemedText style={styles.tagline}>
+            {location ? `${dateString}, ${location.toUpperCase()}` : dateString}
+          </ThemedText>
         </View>
+
+        {/* Temperature Row */}
+        {weather && !weatherLoading && (
+          <View style={styles.topRow}>
+            {/* Weather Illustration and Temperature */}
+            <View style={styles.weatherTempRow}>
+              {(() => {
+                const WeatherIcon = getWeatherIllustration(weather.weatherCode);
+                return <WeatherIcon size={70} color={illustrationColor} />;
+              })()}
+              <View style={styles.tempTextContainer}>
+                <ThemedText style={styles.temperature}>{weather.temperature}°F</ThemedText>
+                <ThemedText style={styles.description}>{weather.description}</ThemedText>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Style Horoscope Content */}
         {hasBirthDate && zodiacSign && (
           <View style={styles.horoscopeSection}>
-            <View style={styles.horoscopeHeader}>
-              <ThemedText style={styles.horoscopeTitle}>
-                {zodiacSign.charAt(0).toUpperCase() + zodiacSign.slice(1)} cosmic style guidance
-              </ThemedText>
-
-              {/* Illustration */}
-              <View style={styles.illustrationContainer}>
-                <IllustrationComponent size={120} color={illustrationColor} />
-              </View>
-            </View>
+            <ThemedText style={styles.horoscopeTitle}>
+              {zodiacSign.charAt(0).toUpperCase() + zodiacSign.slice(1)}, your cosmic style guidance
+            </ThemedText>
 
             <ThemedText style={styles.prompt}>{prompt}</ThemedText>
 
-            {zodiacNote && (
-              <ThemedText style={styles.zodiacNoteText}>{zodiacNote}</ThemedText>
+            {/* Outfit Recommendation */}
+            {weather && !weatherLoading && (
+              <View style={styles.outfitSection}>
+                <ThemedText style={styles.forThisWeatherLabel}>FOR THIS WEATHER</ThemedText>
+                {(() => {
+                  const recommendation = getOutfitRecommendation(weather);
+                  return (
+                    <ThemedText style={styles.outfitText}>
+                      {recommendation.outfit}
+                    </ThemedText>
+                  );
+                })()}
+              </View>
             )}
           </View>
         )}
@@ -442,7 +527,7 @@ export default function HomeScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Weather Section */}
+        {/* Weather Details Section */}
         <View style={styles.weatherSection}>
           {weatherLoading && (
             <View style={styles.weatherLoadingContainer}>
@@ -456,71 +541,61 @@ export default function HomeScreen() {
           )}
 
           {weather && !weatherLoading && (
-            <>
-              <View style={styles.weatherHeader}>
-                <ThemedText style={styles.weatherLocation}>{location}</ThemedText>
-                <Pressable onPress={() => router.push('/outfit-weather-report')}>
-                  <ThemedText style={styles.weatherViewMore}>View More</ThemedText>
-                </Pressable>
-              </View>
-
-              {/* Current Temperature and Weather Illustration */}
-              <View style={styles.tempRow}>
-                {/* Weather Illustration */}
-                {(() => {
-                  const WeatherIcon = getWeatherIllustration(weather.weatherCode);
-                  return <WeatherIcon size={70} color={illustrationColor} />;
-                })()}
-
-                <View style={styles.tempTextContainer}>
-                  <ThemedText style={styles.temperature}>{weather.temperature}°F</ThemedText>
-                  <ThemedText style={styles.description}>{weather.description}</ThemedText>
+            <View style={styles.weatherCard}>
+              {/* Weather Details */}
+              <View style={styles.detailsContainer}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>High / Low</ThemedText>
+                  <ThemedText style={styles.detailValue}>
+                    {weather.maxTemp}° / {weather.minTemp}°
+                  </ThemedText>
                 </View>
-              </View>
 
-              <View style={styles.weatherCard}>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Precipitation</ThemedText>
+                  <ThemedText style={styles.detailValue}>{weather.precipitation}%</ThemedText>
+                </View>
 
-                {/* Weather Details */}
-                <View style={styles.detailsContainer}>
-                  <View style={styles.detailRow}>
-                    <ThemedText style={styles.detailLabel}>High / Low</ThemedText>
-                    <ThemedText style={styles.detailValue}>
-                      {weather.maxTemp}° / {weather.minTemp}°
-                    </ThemedText>
-                  </View>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Wind Speed</ThemedText>
+                  <ThemedText style={styles.detailValue}>{weather.windSpeed} mph</ThemedText>
+                </View>
 
-                  <View style={styles.detailRow}>
-                    <ThemedText style={styles.detailLabel}>Precipitation</ThemedText>
-                    <ThemedText style={styles.detailValue}>{weather.precipitation}%</ThemedText>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <ThemedText style={styles.detailLabel}>Wind Speed</ThemedText>
-                    <ThemedText style={styles.detailValue}>{weather.windSpeed} mph</ThemedText>
+                <View style={styles.detailRow}>
+                  <ThemedText style={styles.detailLabel}>Lunar Phase</ThemedText>
+                  <View style={styles.lunarPhaseValue}>
+                    {(() => {
+                      const lunarPhase = getLunarPhase();
+                      const LunarIcon = lunarIllustrations[lunarPhase.illustrationKey];
+                      return (
+                        <>
+                          <LunarIcon size={32} color={illustrationColor} />
+                          <ThemedText style={styles.detailValue}>{lunarPhase.name}</ThemedText>
+                        </>
+                      );
+                    })()}
                   </View>
                 </View>
               </View>
 
-              {/* Outfit Recommendations */}
-              <View style={styles.outfitRecommendations}>
-                {(() => {
-                  const recommendation = getOutfitRecommendation(weather);
-                  return (
-                    <>
-                      {recommendation.note && (
-                        <View style={styles.noteContainer}>
-                          <ThemedText style={styles.noteText}>{recommendation.note}</ThemedText>
-                        </View>
-                      )}
+              {/* Weather Notes */}
+              {(() => {
+                const recommendation = getOutfitRecommendation(weather);
+                return recommendation.note ? (
+                  <View style={styles.weatherNoteContainer}>
+                    <ThemedText style={styles.weatherNoteText}>{recommendation.note}</ThemedText>
+                  </View>
+                ) : null;
+              })()}
 
-                      <ThemedText style={styles.recommendationText}>
-                        {recommendation.outfit}
-                      </ThemedText>
-                    </>
-                  );
-                })()}
-              </View>
-            </>
+              {/* View More Link */}
+              <Pressable
+                onPress={() => router.push('/outfit-weather-report')}
+                style={styles.viewMoreLink}
+              >
+                <ThemedText style={styles.viewMoreText}>View More</ThemedText>
+              </Pressable>
+            </View>
           )}
         </View>
 
@@ -533,69 +608,124 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.vogueSection}>
-              <View style={styles.vogueSectionHeader}>
-                <ThemedText style={styles.vogueSectionTitle}>From the Vogue Archive</ThemedText>
-                <Pressable onPress={() => router.push('/vogue-archive-search')}>
-                  <ThemedText style={styles.viewAllText}>View More</ThemedText>
-                </Pressable>
-              </View>
+              <ThemedText style={styles.vogueSectionTitle}>From the Vogue Archive</ThemedText>
 
               {searchLoading ? (
                 <View style={styles.searchLoadingContainer}>
                   <ActivityIndicator size="small" color={Colors.light.tint} />
                 </View>
               ) : (
-                <View style={styles.mosaicContainer}>
-                  {searchResults.slice(0, 6).map((result) => (
-                    <Pressable
-                      key={result.id}
-                      style={styles.mosaicItem}
-                      onPress={() => router.push('/vogue-archive-search')}>
-                      {result.metadata.image_url && (
-                        <Image
-                          source={{ uri: result.metadata.image_url }}
-                          style={styles.mosaicImage}
-                          contentFit="cover"
-                          transition={200}
-                        />
-                      )}
-                    </Pressable>
-                  ))}
-                </View>
+                <>
+                  <View style={styles.mosaicContainer}>
+                    {searchResults.slice(0, 6).map((result) => (
+                      <Pressable
+                        key={result.id}
+                        style={styles.mosaicItem}
+                        onPress={() => handleItemPress(result)}>
+                        {result.metadata.image_url && (
+                          <Image
+                            source={{ uri: result.metadata.image_url }}
+                            style={styles.mosaicImage}
+                            contentFit="cover"
+                            transition={200}
+                          />
+                        )}
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Pressable onPress={() => router.push('/vogue-archive-search')}>
+                    <ThemedText style={styles.viewMoreLink}>View More</ThemedText>
+                  </Pressable>
+                </>
               )}
             </View>
           </>
         )}
 
-        <View style={styles.cardsContainer}>
-          <Pressable onPress={() => router.push('/outfit-weather-report')}>
-            <Card style={styles.card} elevation={0}>
-              <Card.Content style={styles.cardContent}>
-                <ThemedText style={styles.cardTitle}>Outfit Weather Report</ThemedText>
-                <ThemedText style={styles.cardSubtitle}>Plan your look</ThemedText>
-              </Card.Content>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/vogue-archive-search')}>
-            <Card style={styles.card} elevation={0}>
-              <Card.Content style={styles.cardContent}>
-                <ThemedText style={styles.cardTitle}>Vogue Archive Search</ThemedText>
-                <ThemedText style={styles.cardSubtitle}>Explore fashion history</ThemedText>
-              </Card.Content>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/illustration-preview')}>
-            <Card style={styles.card} elevation={0}>
-              <Card.Content style={styles.cardContent}>
-                <ThemedText style={styles.cardTitle}>Illustration Preview</ThemedText>
-                <ThemedText style={styles.cardSubtitle}>View all illustrations</ThemedText>
-              </Card.Content>
-            </Card>
-          </Pressable>
-        </View>
+        {/* Horoscope Illustration at Bottom */}
+        {hasBirthDate && zodiacSign && (
+          <View style={styles.bottomIllustrationContainer}>
+            <Animated.View
+              style={{
+                transform: [
+                  { scale: pulseAnim },
+                  {
+                    rotate: rotateAnim.interpolate({
+                      inputRange: [-1, 1],
+                      outputRange: ['-3deg', '3deg'],
+                    }),
+                  },
+                ],
+              }}>
+              <IllustrationComponent size={140} color={illustrationColor} />
+            </Animated.View>
+            <ThemedText style={styles.bottomMessage}>
+              Check back tomorrow for more style inspiration
+            </ThemedText>
+          </View>
+        )}
       </ScrollView>
+
+      {/* Modal for Vogue Archive Item Details */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={handleCloseModal}>
+        <ThemedView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <IconButton
+              icon="close"
+              size={24}
+              onPress={handleCloseModal}
+              iconColor={Colors.light.text}
+            />
+          </View>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {selectedItem?.metadata.image_url && (
+              <Image
+                source={{ uri: selectedItem.metadata.image_url }}
+                style={styles.modalImage}
+                contentFit="contain"
+                transition={200}
+              />
+            )}
+            {selectedItem && (
+              <View style={styles.modalDetails}>
+                <View style={styles.modalMetaRow}>
+                  <ThemedText style={styles.modalSeason}>
+                    {selectedItem.metadata.season} {selectedItem.metadata.year}
+                  </ThemedText>
+                  <ThemedText style={styles.modalCity}>
+                    {selectedItem.metadata.city}
+                  </ThemedText>
+                </View>
+                {selectedItem.metadata.designer && (
+                  <ThemedText style={styles.modalDesigner}>
+                    {selectedItem.metadata.designer}
+                  </ThemedText>
+                )}
+                <ThemedText style={styles.modalDescription}>
+                  {selectedItem.metadata.description}
+                </ThemedText>
+                {selectedItem.metadata.category && (
+                  <ThemedText style={styles.modalCategory}>
+                    {selectedItem.metadata.category}
+                  </ThemedText>
+                )}
+                {selectedItem.metadata.section && (
+                  <ThemedText style={styles.modalSection}>
+                    {selectedItem.metadata.section}
+                  </ThemedText>
+                )}
+                <ThemedText style={styles.modalScore}>
+                  {(selectedItem.score * 100).toFixed(0)}% match
+                </ThemedText>
+              </View>
+            )}
+          </ScrollView>
+        </ThemedView>
+      </Modal>
     </ThemedView>
   );
 }
@@ -621,9 +751,9 @@ const styles = StyleSheet.create({
   },
   tagline: {
     ...Typography.subtitle,
-    fontSize: 13,
+    fontSize: 11,
     letterSpacing: 2,
-    opacity: 0.6,
+    opacity: 0.5,
     textAlign: 'right',
   },
   inspirationModule: {
@@ -653,8 +783,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
     opacity: 0.6,
   },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: 32,
+    gap: 16,
+  },
+  weatherTempRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  tempTextContainer: {
+    alignItems: 'flex-start',
+    gap: 2,
+    flex: 1,
+  },
   horoscopeSection: {
-    marginTop: 24,
     marginBottom: 32,
   },
   horoscopeHeader: {
@@ -680,25 +826,45 @@ const styles = StyleSheet.create({
   },
   prompt: {
     ...Typography.body,
-    fontSize: 22,
-    lineHeight: 34,
+    fontSize: 20,
+    lineHeight: 32,
     fontWeight: '300',
-    letterSpacing: 0.3,
-    marginBottom: 16,
+    letterSpacing: 0.2,
+    marginBottom: 24,
     fontFamily: Fonts.serif,
   },
   zodiacNoteText: {
     ...Typography.body,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '300',
     fontStyle: 'italic',
-    opacity: 0.6,
+    opacity: 0.5,
+    lineHeight: 20,
+  },
+  outfitSection: {
+    marginTop: 16,
+  },
+  forThisWeatherLabel: {
+    ...Typography.subtitle,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    opacity: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: 16,
+  },
+  outfitText: {
+    ...Typography.body,
+    fontSize: 16,
+    lineHeight: 28,
+    fontWeight: '300',
+    letterSpacing: 0.2,
+    fontFamily: Fonts.serif,
   },
   horoscopeTitle: {
     ...Typography.subtitle,
-    fontSize: 13,
-    letterSpacing: 2,
-    opacity: 0.6,
+    fontSize: 11,
+    letterSpacing: 2.5,
+    opacity: 0.5,
     textTransform: 'uppercase',
     flex: 1,
     paddingRight: 16,
@@ -719,41 +885,41 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   cardsContainer: {
-    gap: 16,
+    gap: 12,
+    marginTop: 16,
   },
   card: {
     backgroundColor: Colors.light.surface,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    borderRadius: 2,
   },
   cardContent: {
-    paddingVertical: 24,
+    paddingVertical: 20,
     paddingHorizontal: 20,
   },
   cardTitle: {
     ...Typography.heading,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '400',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    letterSpacing: 0.3,
+    marginBottom: 6,
   },
   cardSubtitle: {
     ...Typography.caption,
     fontSize: 11,
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     opacity: 0.5,
   },
   sectionDivider: {
-    paddingVertical: 24,
+    paddingTop: 32,
+    paddingBottom: 0,
     marginBottom: 24,
     marginHorizontal: -24,
   },
   dividerLine: {
-    height: 8,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: Colors.light.border,
+    height: 1,
+    backgroundColor: Colors.light.border,
   },
   weatherSection: {
     marginBottom: 32,
@@ -780,18 +946,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 0,
+    marginBottom: 24,
   },
   weatherLocation: {
     ...Typography.subtitle,
-    fontSize: 13,
-    letterSpacing: 2,
-    opacity: 0.6,
-    marginBottom: 0,
+    fontSize: 11,
+    letterSpacing: 2.5,
+    opacity: 0.5,
+    textTransform: 'uppercase',
   },
   weatherViewMore: {
     ...Typography.body,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.light.tint,
     letterSpacing: 0.5,
   },
@@ -799,9 +965,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: 24,
+    gap: 16,
   },
   weatherIllustrationContainer: {
     alignItems: 'flex-end',
@@ -814,23 +979,21 @@ const styles = StyleSheet.create({
   },
   temperature: {
     ...Typography.body,
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '300',
-    letterSpacing: 0.3,
+    fontSize: 48,
+    lineHeight: 56,
+    fontWeight: '200',
+    letterSpacing: -0.5,
     fontFamily: Fonts.serif,
   },
   description: {
     ...Typography.body,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '300',
-    textTransform: 'capitalize',
     letterSpacing: 0.5,
-    opacity: 0.7,
+    opacity: 0.6,
   },
   weatherCard: {
-    marginBottom: 32,
-    marginTop: 0,
+    marginBottom: 0,
   },
   tempContainer: {
     flexDirection: 'row',
@@ -847,43 +1010,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 4,
   },
   detailLabel: {
     ...Typography.label,
-    fontSize: 14,
-    fontWeight: '400',
-    opacity: 0.6,
+    fontSize: 13,
+    fontWeight: '300',
+    opacity: 0.5,
+    letterSpacing: 0.5,
   },
   detailValue: {
     ...Typography.body,
-    fontSize: 16,
-    fontWeight: '400',
+    fontSize: 15,
+    fontWeight: '300',
   },
-  outfitRecommendations: {
-    marginBottom: 24,
+  lunarPhaseValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  noteContainer: {
-    backgroundColor: Colors.light.tint + '15',
+  weatherNoteContainer: {
+    backgroundColor: Colors.light.surface,
     padding: 16,
     borderRadius: 2,
-    marginBottom: 20,
-    borderLeftWidth: 2,
-    borderLeftColor: Colors.light.tint,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  weatherNoteText: {
+    ...Typography.label,
+    fontSize: 12,
+    fontWeight: '300',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+    opacity: 0.7,
+  },
+  viewMoreLink: {
+    marginTop: 20,
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  viewMoreText: {
+    ...Typography.label,
+    fontSize: 12,
+    fontWeight: '400',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: Colors.light.tint,
+  },
+  outfitRecommendations: {
+    marginBottom: 0,
+  },
+  noteContainer: {
+    backgroundColor: Colors.light.surface,
+    padding: 20,
+    borderRadius: 2,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   noteText: {
     ...Typography.label,
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 12,
+    fontWeight: '300',
     textAlign: 'center',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+    opacity: 0.7,
   },
   recommendationText: {
     ...Typography.body,
     fontSize: 16,
-    lineHeight: 26,
+    lineHeight: 28,
     fontWeight: '300',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     fontFamily: Fonts.serif,
+  },
+  bottomIllustrationContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 32,
+    marginBottom: 32,
+  },
+  bottomMessage: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    opacity: 0.5,
+    textAlign: 'center',
+    marginTop: 24,
+    fontStyle: 'italic',
   },
   vogueSection: {
     marginBottom: 32,
@@ -892,17 +1107,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   vogueSectionTitle: {
     ...Typography.subtitle,
-    fontSize: 13,
-    letterSpacing: 2,
-    opacity: 0.6,
+    fontSize: 11,
+    letterSpacing: 2.5,
+    opacity: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 28,
   },
   viewAllText: {
     ...Typography.body,
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.light.tint,
     letterSpacing: 0.5,
   },
@@ -914,17 +1131,103 @@ const styles = StyleSheet.create({
   mosaicContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
   },
   mosaicItem: {
     width: COLUMN_WIDTH,
     aspectRatio: 0.75,
-    borderRadius: 4,
+    borderRadius: 2,
     overflow: 'hidden',
-    backgroundColor: Colors.light.border,
+    backgroundColor: Colors.light.surface,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   mosaicImage: {
     width: '100%',
     height: '100%',
+  },
+  viewMoreLink: {
+    ...Typography.body,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginTop: 20,
+    opacity: 0.7,
+    color: Colors.light.tint,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: Colors.light.background,
+  },
+  modalContent: {
+    paddingBottom: 40,
+  },
+  modalImage: {
+    width: width,
+    height: width * 1.33,
+    backgroundColor: Colors.light.border,
+  },
+  modalDetails: {
+    padding: 24,
+  },
+  modalMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalSeason: {
+    ...Typography.caption,
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    opacity: 0.6,
+  },
+  modalCity: {
+    ...Typography.caption,
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    opacity: 0.6,
+  },
+  modalDesigner: {
+    ...Typography.heading,
+    fontSize: 28,
+    fontWeight: '300',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  modalDescription: {
+    ...Typography.body,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '300',
+    marginBottom: 16,
+  },
+  modalCategory: {
+    ...Typography.caption,
+    fontSize: 13,
+    opacity: 0.7,
+    marginBottom: 8,
+  },
+  modalSection: {
+    ...Typography.caption,
+    fontSize: 13,
+    opacity: 0.7,
+    marginBottom: 8,
+  },
+  modalScore: {
+    ...Typography.caption,
+    fontSize: 13,
+    color: Colors.light.tint,
+    fontWeight: '500',
+    marginTop: 16,
   },
 });

@@ -40,6 +40,18 @@ import {
 // Import fashion illustrations
 import { illustrations } from '@/components/illustrations/fashion-illustrations';
 
+// Import lunar phase illustrations
+import {
+  NewMoonIllustration,
+  WaxingCrescentIllustration,
+  FirstQuarterIllustration,
+  WaxingGibbousIllustration,
+  FullMoonIllustration,
+  WaningGibbousIllustration,
+  LastQuarterIllustration,
+  WaningCrescentIllustration,
+} from '@/components/illustrations/lunar-illustrations';
+
 export default function IllustrationPreviewScreen() {
   const illustrationColor = useThemeColor({}, 'text');
 
@@ -133,6 +145,17 @@ export default function IllustrationPreviewScreen() {
     { name: 'Jumpsuit', component: illustrations.jumpsuit },
   ];
 
+  const lunarIllustrations = [
+    { name: 'New Moon', component: NewMoonIllustration },
+    { name: 'Waxing Crescent', component: WaxingCrescentIllustration },
+    { name: 'First Quarter', component: FirstQuarterIllustration },
+    { name: 'Waxing Gibbous', component: WaxingGibbousIllustration },
+    { name: 'Full Moon', component: FullMoonIllustration },
+    { name: 'Waning Gibbous', component: WaningGibbousIllustration },
+    { name: 'Last Quarter', component: LastQuarterIllustration },
+    { name: 'Waning Crescent', component: WaningCrescentIllustration },
+  ];
+
   const renderSection = (title: string, items: Array<{ name: string; component: any }>) => (
     <View style={styles.section}>
       <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
@@ -161,6 +184,7 @@ export default function IllustrationPreviewScreen() {
         {renderSection('Accessories', accessoriesIllustrations)}
         {renderSection('Footwear', footwearIllustrations)}
         {renderSection('Weather', weatherIllustrations)}
+        {renderSection('Lunar Phases', lunarIllustrations)}
         {renderSection('Fashion / Zodiac', fashionIllustrations)}
       </ScrollView>
     </ThemedView>
