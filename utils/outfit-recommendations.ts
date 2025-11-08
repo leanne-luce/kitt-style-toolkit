@@ -1,9 +1,24 @@
 import { WeatherData } from '@/services/weather';
+import {
+  OUTFIT_LIBRARY,
+  WEATHER_ADDITIONS,
+  getCurrentSeasonalEvent,
+  getVariedOutfit,
+  getRandomItem,
+} from './outfit-library';
 
 export interface OutfitRecommendation {
+  outfit: string;
+  bring: string;
+  note?: string;
+}
+
+export interface DetailedOutfitRecommendation {
   layers: string;
-  accessories: string;
-  footwear: string;
+  top: string;
+  bottom: string;
+  shoes: string;
+  accessories?: string;
   note?: string;
 }
 
@@ -17,86 +32,53 @@ export function getOutfitRecommendation(weather: WeatherData): OutfitRecommendat
   const tempRange = maxTemp - minTemp;
   const avgTemp = (maxTemp + minTemp) / 2;
 
-  // Temperature-based recommendations using average temp, with notes about range
-  let layers = '';
-  let footwear = '';
-
+  // Determine temperature category for outfit library
+  let category: keyof typeof OUTFIT_LIBRARY;
   if (avgTemp >= 80) {
-    layers = 'Single layer - light, breathable fabrics like linen or cotton';
-    if (tempRange > 15) {
-      layers += '. Bring a light layer for evening';
-    }
-    footwear = 'Sandals or breathable sneakers';
+    category = 'hot';
   } else if (avgTemp >= 70) {
-    layers = 'Light layers - add a light cardigan or kimono for air conditioning';
-    if (tempRange > 15) {
-      layers += '. Consider a versatile layer you can add/remove';
-    }
-    footwear = 'Sandals, loafers, or sneakers';
+    category = 'warm';
   } else if (avgTemp >= 60) {
-    layers = 'Light jacket, blazer, or denim jacket over base layer';
-    if (tempRange > 15) {
-      layers += '. Layer so you can adjust throughout the day';
-    }
-    footwear = 'Loafers, sneakers, or ankle boots';
+    category = 'mild';
   } else if (avgTemp >= 50) {
-    layers = 'Sweater or hoodie with light jacket';
-    if (maxTemp >= 65) {
-      layers = 'Start with sweater, bring a jacket for cooler parts of day';
-    } else if (minTemp <= 45) {
-      layers += ' - it will be chilly, especially morning and evening';
-    }
-    footwear = 'Closed-toe shoes or boots';
+    category = 'cool';
   } else if (avgTemp >= 40) {
-    layers = 'Sweater with medium-weight jacket or coat';
-    if (tempRange > 15) {
-      layers += '. Layering is key with this temperature swing';
-    }
-    footwear = 'Boots or sturdy closed-toe shoes';
+    category = 'cold';
   } else if (avgTemp >= 32) {
-    layers = 'Heavy coat, sweater, long sleeves - consider layering base';
-    footwear = 'Insulated boots';
+    category = 'freezing';
   } else {
-    layers = 'Maximum warmth - thermal base layer, sweater, heavy winter coat';
-    footwear = 'Insulated waterproof boots';
+    category = 'arctic';
   }
 
-  // Precipitation and weather condition adjustments
-  let accessories = '';
+  // Get current seasonal event if any
+  const seasonalEvent = getCurrentSeasonalEvent();
+
+  // Get varied outfit from library with seasonal modifiers
+  const hasLargeTempRange = tempRange > 15;
+  let outfit = getVariedOutfit(category, hasLargeTempRange, seasonalEvent);
+
+  // Precipitation and weather condition adjustments - append to outfit
   let note: string | undefined;
 
-  // Check if it's sunny or clear (weather codes 0, 1, 2)
-  const isSunny = [0, 1, 2].includes(weatherCode);
-  const isCloudy = [3].includes(weatherCode);
-
+  // Only append weather-specific items when meaningfully relevant
   if (precipitation > 50 || [61, 63, 65, 80, 81, 82].includes(weatherCode)) {
     // High chance of rain or actively raining
-    accessories = 'Umbrella, water-resistant bag';
-    note = 'Rain expected - prioritize waterproof materials';
-    // Adjust layers for rain
-    layers = layers + ' with waterproof outer layer';
+    outfit += getRandomItem(WEATHER_ADDITIONS.heavyRain);
+    note = 'Rain expected - add waterproof outer layer';
   } else if (precipitation > 20) {
-    accessories = 'Pack an umbrella just in case, crossbody bag';
+    outfit += getRandomItem(WEATHER_ADDITIONS.lightRain);
   } else if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
     // Snow conditions
-    accessories = 'Warm hat, gloves, scarf';
+    outfit += getRandomItem(WEATHER_ADDITIONS.snow);
     note = 'Snowy conditions - dress for warmth and traction';
   } else if (windSpeed > 15) {
-    accessories = 'Scarf to block wind, secure bag';
+    outfit += getRandomItem(WEATHER_ADDITIONS.wind);
     if (!note) note = 'Windy conditions - secure loose items';
-  } else if (isSunny && temperature >= 75) {
-    // Hot and sunny
-    accessories = 'Sunglasses, wide-brim hat, tote or crossbody bag';
-  } else if (isSunny) {
-    // Sunny but not too hot
-    accessories = 'Sunglasses, versatile bag';
-  } else if (isCloudy || [45, 48].includes(weatherCode)) {
-    // Overcast or foggy
-    accessories = 'Structured bag, watch';
-  } else {
-    // Default for other conditions
-    accessories = 'Versatile bag';
+  } else if (temperature >= 85) {
+    // Very hot
+    outfit += getRandomItem(WEATHER_ADDITIONS.veryHot);
   }
+  // For normal/mild conditions, leave as is - no need to add generic accessories
 
   // Additional notes for extreme conditions
   if (temperature >= 90) {
@@ -108,9 +90,128 @@ export function getOutfitRecommendation(weather: WeatherData): OutfitRecommendat
   }
 
   return {
+    outfit,
+    bring: '', // No longer used - accessories are appended to outfit
+    note,
+  };
+}
+
+/**
+ * Generates detailed, categorized outfit recommendations for the weather report page
+ */
+export function getDetailedOutfitRecommendation(weather: WeatherData): DetailedOutfitRecommendation {
+  const { temperature, precipitation, windSpeed, weatherCode, maxTemp, minTemp } = weather;
+  const tempRange = maxTemp - minTemp;
+  const avgTemp = (maxTemp + minTemp) / 2;
+
+  let layers = '';
+  let top = '';
+  let bottom = '';
+  let shoes = '';
+  let accessories = '';
+  let note: string | undefined;
+
+  // Determine outfit based on temperature
+  if (avgTemp >= 80) {
+    // Hot weather
+    layers = 'Single layer - keep it minimal';
+    top = 'Breathable cotton or linen tank, sleeveless button-down, or loose tee';
+    bottom = 'Shorts, flowy midi skirt, or wide-leg linen pants';
+    shoes = 'Sandals, slides, or espadrilles';
+    accessories = 'Sunglasses, lightweight hat for sun protection';
+
+    if (temperature >= 90) {
+      note = 'Very hot - stay hydrated, seek shade when possible';
+    }
+  } else if (avgTemp >= 70) {
+    // Warm weather
+    layers = 'Light layers - cardigan or denim jacket you can tie around waist';
+    top = 'Cotton tee, short-sleeve knit, or chambray shirt';
+    bottom = 'Jeans, cropped pants, midi skirt, or casual dress';
+    shoes = 'Sneakers, loafers, mules, or ankle boots';
+
+    if (tempRange > 15) {
+      accessories = 'Light scarf for temperature changes';
+    }
+  } else if (avgTemp >= 60) {
+    // Mild weather
+    layers = 'Layering essential - blazer, denim jacket, or cardigan';
+    top = 'Turtleneck, lightweight sweater, button-down, or sweater vest';
+    bottom = 'Jeans, trousers, or midi dress as base layer';
+    shoes = 'Ankle boots, loafers, or oxfords';
+    accessories = 'Light scarf, crossbody bag';
+  } else if (avgTemp >= 50) {
+    // Cool weather
+    layers = 'Sweater weather - chunky knit, cardigan, or light coat';
+    top = 'Turtleneck, crewneck sweater, or long-sleeve base layer';
+    bottom = 'Jeans, trousers, or warm dress';
+    shoes = 'Boots, closed-toe shoes, or weatherproof sneakers';
+    accessories = 'Scarf, beanie if windy';
+  } else if (avgTemp >= 40) {
+    // Cold weather
+    layers = 'Real coat time - wool coat, puffer, or heavy jacket';
+    top = 'Wool sweater, thick knit, or thermal layers';
+    bottom = 'Jeans, lined pants, or warm dress with tights';
+    shoes = 'Insulated boots or weatherproof ankle boots';
+    accessories = 'Warm scarf, gloves, beanie';
+  } else if (avgTemp >= 32) {
+    // Freezing
+    layers = 'Heavy winter coat - insulated puffer or wool coat';
+    top = 'Multiple layers: thermal base, sweater, possibly vest';
+    bottom = 'Insulated pants, warm jeans, or fleece-lined tights';
+    shoes = 'Insulated winter boots with good traction';
+    accessories = 'Warm hat, insulated gloves, thick scarf';
+    note = 'Layer up - multiple thin layers trap heat better than one thick layer';
+  } else {
+    // Arctic
+    layers = 'Maximum insulation - down puffer or arctic-rated coat';
+    top = 'Layer heavily: thermal base, fleece mid-layer, thick sweater';
+    bottom = 'Insulated pants or multiple layers';
+    shoes = 'Heavy-duty winter boots rated for extreme cold';
+    accessories = 'Insulated hat covering ears, warm gloves, neck gaiter or scarf';
+    note = 'Extremely cold - cover all exposed skin, limit time outdoors';
+  }
+
+  // Weather condition adjustments
+  if (precipitation > 50 || [61, 63, 65, 80, 81, 82].includes(weatherCode)) {
+    // Heavy rain
+    if (!accessories) accessories = '';
+    accessories += (accessories ? ', ' : '') + 'Waterproof jacket or rain coat, umbrella';
+    if (!note) note = 'Rain expected - add waterproof outer layer';
+  } else if (precipitation > 20) {
+    // Light rain possibility
+    if (!accessories) accessories = '';
+    accessories += (accessories ? ', ' : '') + 'Bring umbrella or light rain jacket';
+  }
+
+  if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
+    // Snow
+    shoes = 'Waterproof insulated boots with good traction';
+    if (!accessories) accessories = '';
+    accessories += (accessories ? ', ' : '') + 'Water-resistant gloves, warm hat';
+    if (!note) note = 'Snowy conditions - dress for warmth and traction';
+  }
+
+  if (windSpeed > 20) {
+    if (!note) note = 'Very windy - wear windproof outer layer, secure loose items';
+  } else if (windSpeed > 15) {
+    if (!note) note = 'Windy conditions - consider a windbreaker or secured layers';
+  }
+
+  if ([95, 96, 99].includes(weatherCode)) {
+    note = 'Thunderstorm expected - stay safe and dry';
+  }
+
+  if (tempRange > 15) {
+    if (!note) note = 'Large temperature swing today - dress in layers you can remove';
+  }
+
+  return {
     layers,
-    accessories,
-    footwear,
+    top,
+    bottom,
+    shoes,
+    accessories: accessories || undefined,
     note,
   };
 }

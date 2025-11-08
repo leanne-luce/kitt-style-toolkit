@@ -48,7 +48,14 @@ export async function getCityFromCoords(
     });
 
     if (geocode.length > 0) {
-      const { city, region } = geocode[0];
+      const { city, region, isoCountryCode } = geocode[0];
+
+      // Return "City, State" format for US locations
+      if (city && region && isoCountryCode === 'US') {
+        return `${city}, ${region}`;
+      }
+
+      // Fallback to just city or region if one is missing
       return city || region || 'Unknown location';
     }
 

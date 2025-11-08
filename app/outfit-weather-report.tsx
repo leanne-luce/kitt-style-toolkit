@@ -6,12 +6,11 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { getCurrentLocation, getCityFromCoords } from '@/services/location';
 import { getWeather, WeatherData } from '@/services/weather';
-import { getOutfitRecommendation } from '@/utils/outfit-recommendations';
+import { getOutfitRecommendation, getDetailedOutfitRecommendation } from '@/utils/outfit-recommendations';
 import { getWeatherIllustration } from '@/components/illustrations/weather-illustrations';
-import { getGarmentIllustration } from '@/components/illustrations/garment-illustrations';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { Colors, Typography } from '@/constants/theme';
-import { saveCurrentWeather } from '@/utils/weather-storage';
+import { Colors, Typography, Fonts } from '@/constants/theme';
+import { saveCurrentWeather, saveCurrentOutfit } from '@/utils/weather-storage';
 
 export default function OutfitWeatherReportScreen() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -38,17 +37,21 @@ export default function OutfitWeatherReportScreen() {
         return;
       }
 
-      // Get city name and weather in parallel
+      // Get city name and weather in parallel (with hourly data)
       const [cityName, weatherData] = await Promise.all([
         getCityFromCoords(coords.latitude, coords.longitude),
-        getWeather(coords.latitude, coords.longitude),
+        getWeather(coords.latitude, coords.longitude, true),
       ]);
 
       setLocation(cityName);
       setWeather(weatherData);
 
-      // Save weather to storage for Vogue Archive to use
+      // Generate outfit recommendation
+      const recommendation = getOutfitRecommendation(weatherData);
+
+      // Save weather and outfit to storage for Vogue Archive to use
       await saveCurrentWeather(weatherData);
+      await saveCurrentOutfit(recommendation.outfit);
     } catch (err) {
       console.error('Error loading weather:', err);
       setError('Failed to load weather data. Please try again.');
@@ -123,6 +126,40 @@ export default function OutfitWeatherReportScreen() {
               </Card.Content>
             </Card>
 
+            {/* Hourly Forecast */}
+            {weather.hourly && weather.hourly.length > 0 && (
+              <Card style={styles.card} elevation={2}>
+                <Card.Content style={styles.cardContent}>
+                  <ThemedText style={styles.hourlyTitle}>Hourly Forecast</ThemedText>
+                  <Divider style={styles.divider} />
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hourlyScroll}>
+                    <View style={styles.hourlyContainer}>
+                      {weather.hourly.map((hour, index) => {
+                        const hourTime = new Date(hour.time);
+                        const displayTime = hourTime.toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          hour12: true
+                        });
+                        const WeatherIcon = getWeatherIllustration(hour.weatherCode);
+
+                        return (
+                          <View key={index} style={styles.hourlyItem}>
+                            <ThemedText style={styles.hourlyTime}>{displayTime}</ThemedText>
+                            <View style={styles.hourlyIconContainer}>
+                              <WeatherIcon size={32} color={illustrationColor} />
+                            </View>
+                            <ThemedText style={styles.hourlyTemp}>{hour.temperature}°</ThemedText>
+                            <ThemedText style={styles.hourlyPrecip}>{hour.precipitation}%</ThemedText>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </Card.Content>
+              </Card>
+            )}
+
             {/* Outfit Recommendations */}
             <Card style={styles.card} elevation={2}>
               <Card.Content style={styles.cardContent}>
@@ -131,52 +168,43 @@ export default function OutfitWeatherReportScreen() {
 
                 <View style={styles.recommendationContainer}>
                   {(() => {
-                    const recommendation = getOutfitRecommendation(weather);
+                    const detailedRec = getDetailedOutfitRecommendation(weather);
+
                     return (
                       <>
-                        {recommendation.note && (
+                        {detailedRec.note && (
                           <View style={styles.noteContainer}>
-                            <ThemedText style={styles.noteText}>{recommendation.note}</ThemedText>
+                            <ThemedText style={styles.noteText}>{detailedRec.note}</ThemedText>
                           </View>
                         )}
 
-                        <View style={styles.recommendationItem}>
-                          <View style={styles.recommendationRow}>
-                            {(() => {
-                              const LayersIcon = getGarmentIllustration(recommendation.layers);
-                              return <LayersIcon size={50} color={illustrationColor} />;
-                            })()}
-                            <View style={styles.recommendationTextContainer}>
-                              <ThemedText style={styles.recommendationLabel}>Layers</ThemedText>
-                              <ThemedText style={styles.recommendationText}>{recommendation.layers}</ThemedText>
-                            </View>
+                        <View style={styles.categoryContainer}>
+                          <View style={styles.categoryItem}>
+                            <ThemedText style={styles.categoryLabel}>Layers</ThemedText>
+                            <ThemedText style={styles.categoryText}>{detailedRec.layers}</ThemedText>
                           </View>
-                        </View>
 
-                        <View style={styles.recommendationItem}>
-                          <View style={styles.recommendationRow}>
-                            {(() => {
-                              const AccessoriesIcon = getGarmentIllustration(recommendation.accessories);
-                              return <AccessoriesIcon size={50} color={illustrationColor} />;
-                            })()}
-                            <View style={styles.recommendationTextContainer}>
-                              <ThemedText style={styles.recommendationLabel}>Accessories</ThemedText>
-                              <ThemedText style={styles.recommendationText}>{recommendation.accessories}</ThemedText>
-                            </View>
+                          <View style={styles.categoryItem}>
+                            <ThemedText style={styles.categoryLabel}>Top</ThemedText>
+                            <ThemedText style={styles.categoryText}>{detailedRec.top}</ThemedText>
                           </View>
-                        </View>
 
-                        <View style={styles.recommendationItem}>
-                          <View style={styles.recommendationRow}>
-                            {(() => {
-                              const FootwearIcon = getGarmentIllustration(recommendation.footwear);
-                              return <FootwearIcon size={50} color={illustrationColor} />;
-                            })()}
-                            <View style={styles.recommendationTextContainer}>
-                              <ThemedText style={styles.recommendationLabel}>Footwear</ThemedText>
-                              <ThemedText style={styles.recommendationText}>{recommendation.footwear}</ThemedText>
-                            </View>
+                          <View style={styles.categoryItem}>
+                            <ThemedText style={styles.categoryLabel}>Bottom</ThemedText>
+                            <ThemedText style={styles.categoryText}>{detailedRec.bottom}</ThemedText>
                           </View>
+
+                          <View style={styles.categoryItem}>
+                            <ThemedText style={styles.categoryLabel}>Shoes</ThemedText>
+                            <ThemedText style={styles.categoryText}>{detailedRec.shoes}</ThemedText>
+                          </View>
+
+                          {detailedRec.accessories && (
+                            <View style={styles.categoryItem}>
+                              <ThemedText style={styles.categoryLabel}>Accessories</ThemedText>
+                              <ThemedText style={styles.categoryText}>{detailedRec.accessories}</ThemedText>
+                            </View>
+                          )}
                         </View>
                       </>
                     );
@@ -322,30 +350,74 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.3,
   },
-  recommendationItem: {
-    gap: 8,
-  },
-  recommendationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  recommendationTextContainer: {
-    flex: 1,
-    gap: 6,
-  },
-  recommendationLabel: {
-    ...Typography.caption,
-    fontSize: 11,
-    fontWeight: '500',
-    letterSpacing: 1.5,
-    opacity: 0.5,
-  },
   recommendationText: {
     ...Typography.body,
-    fontSize: 15,
+    fontSize: 22,
+    lineHeight: 34,
+    fontWeight: '300',
+    letterSpacing: 0.3,
+    fontFamily: Fonts.serif,
+  },
+  hourlyTitle: {
+    ...Typography.heading,
+    fontSize: 22,
+    fontWeight: '300',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  hourlyScroll: {
+    marginHorizontal: -12,
+  },
+  hourlyContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    paddingHorizontal: 12,
+  },
+  hourlyItem: {
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 60,
+  },
+  hourlyTime: {
+    ...Typography.caption,
+    fontSize: 11,
+    opacity: 0.6,
+    letterSpacing: 0.3,
+  },
+  hourlyIconContainer: {
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hourlyTemp: {
+    ...Typography.body,
+    fontSize: 18,
+    fontWeight: '400',
+  },
+  hourlyPrecip: {
+    ...Typography.caption,
+    fontSize: 11,
+    opacity: 0.6,
+    color: Colors.light.tint,
+  },
+  categoryContainer: {
+    gap: 20,
+  },
+  categoryItem: {
+    gap: 6,
+  },
+  categoryLabel: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    opacity: 0.5,
+    textTransform: 'uppercase',
+  },
+  categoryText: {
+    ...Typography.body,
+    fontSize: 16,
     lineHeight: 24,
     fontWeight: '300',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
 });

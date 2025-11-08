@@ -201,7 +201,7 @@ export default function ProfileScreen() {
           </View>
 
           {isLoadingProfile ? (
-            <Card style={styles.card} elevation={2}>
+            <Card style={styles.card} elevation={0}>
               <Card.Content style={styles.cardContent}>
                 <ActivityIndicator size="large" color={Colors.light.tint} />
                 <ThemedText style={styles.loadingText}>Loading profile...</ThemedText>
@@ -209,7 +209,7 @@ export default function ProfileScreen() {
             </Card>
           ) : (
             <>
-              <Card style={styles.card} elevation={2}>
+              <Card style={styles.card} elevation={0}>
                 <Card.Content style={styles.cardContent}>
                   <View style={styles.profileHeader}>
                     <ThemedText style={styles.sectionTitle}>Personal Info</ThemedText>
@@ -362,7 +362,7 @@ export default function ProfileScreen() {
                 </Card.Content>
               </Card>
 
-              <Card style={styles.card} elevation={2}>
+              <Card style={styles.card} elevation={0}>
                 <Card.Content style={styles.cardContent}>
                   <ThemedText style={styles.sectionTitle}>Account</ThemedText>
 
@@ -399,7 +399,7 @@ export default function ProfileScreen() {
           </ThemedText>
         </View>
 
-        <Card style={styles.card} elevation={2}>
+        <Card style={styles.card} elevation={0}>
           <Card.Content style={styles.cardContent}>
             <TextInput
               label="Email"
@@ -444,7 +444,7 @@ export default function ProfileScreen() {
           </Card.Content>
         </Card>
 
-        <Card style={styles.card} elevation={2}>
+        <Card style={styles.card} elevation={0}>
           <Card.Content style={styles.cardContent}>
             <ThemedText style={styles.noteTitle}>Getting Started</ThemedText>
             <ThemedText style={styles.noteText}>
@@ -471,15 +471,14 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.title,
-    fontSize: 36,
-    fontWeight: '200',
-    letterSpacing: 1,
-    marginBottom: 12,
+    fontSize: 32,
+    fontWeight: '300',
+    letterSpacing: 0.5,
+    marginBottom: 8,
   },
   subtitle: {
     ...Typography.subtitle,
     fontSize: 12,
-    fontWeight: '300',
     letterSpacing: 2,
     opacity: 0.6,
   },

@@ -43,7 +43,7 @@ export const PartlyCloudyIllustration = ({ size = 80, color = '#000' }: Illustra
   </Svg>
 );
 
-// Overcast - fluffy clouds stacked
+// Overcast - fluffy clouds with hand-drawn outline overlay
 export const OvercastIllustration = ({ size = 80, color = '#000' }: IllustrationProps) => (
   <Svg width={size} height={size} viewBox="0 0 100 100">
     <G stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -53,6 +53,12 @@ export const OvercastIllustration = ({ size = 80, color = '#000' }: Illustration
       <Path d="M 24 50 Q 22 44 28 40 Q 32 38 38 40 Q 42 34 50 34 Q 58 34 62 40 Q 68 38 72 42 Q 76 46 74 52 Q 74 58 68 60 L 30 60 Q 24 58 24 52" fill={color} opacity="0.08" />
       {/* Bottom cloud */}
       <Path d="M 30 68 Q 28 64 32 62 Q 36 60 42 62 Q 44 58 50 58 Q 56 58 58 62 Q 62 60 66 62 Q 70 64 68 68 Q 68 72 64 74 L 36 74 Q 30 72 30 68" fill={color} opacity="0.06" />
+
+      {/* Hand-drawn black cloud outline - off-center, puffy shape */}
+      <Path d="M 68.5 57.8 Q 67.1 55.2 69.9 53.3 Q 72.7 51.9 76.3 53.3 Q 78.3 51.2 81.1 51.2 Q 83.9 51.2 86.0 53.3 Q 88.8 51.9 91.6 53.5 Q 93.5 55.6 92.8 58.6 Q 92.8 61.2 91.3 63.8 Q 89.9 65.2 87.1 65.9 Q 84.3 66.5 81.1 65.9 Q 78.3 66.5 75.5 65.9 L 70.6 65.2 Q 67.8 63.8 67.1 61.2 Q 66.4 59.3 67.1 57.8"
+            stroke={color}
+            strokeWidth="2"
+            fill="none" />
     </G>
   </Svg>
 );

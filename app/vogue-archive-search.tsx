@@ -72,7 +72,7 @@ export default function VogueArchiveSearchScreen() {
         },
         body: JSON.stringify({
           query: enhancedQuery,
-          top_k: 10,
+          top_k: 20,
           gender_preference: genderPreference,
         }),
       });
@@ -224,7 +224,7 @@ export default function VogueArchiveSearchScreen() {
 
         const weather = await getCurrentWeather();
         if (weather) {
-          const fashionQuery = getWeatherBasedFashionQuery(weather);
+          const fashionQuery = await getWeatherBasedFashionQuery(weather);
           const description = getWeatherFashionDescription(weather);
 
           setQuery(fashionQuery);
@@ -266,6 +266,7 @@ export default function VogueArchiveSearchScreen() {
           </ThemedText>
         </View>
 
+        {/* Search bar hidden - auto-populated from weather
         <Card style={styles.searchCard} elevation={2}>
           <Card.Content style={styles.cardContent}>
             <Searchbar
@@ -288,6 +289,7 @@ export default function VogueArchiveSearchScreen() {
 
           </Card.Content>
         </Card>
+        */}
 
         {loading && (
           <Card style={styles.card} elevation={2}>

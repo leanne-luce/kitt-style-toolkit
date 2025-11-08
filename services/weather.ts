@@ -1,3 +1,10 @@
+export interface HourlyWeather {
+  time: string;
+  temperature: number;
+  weatherCode: number;
+  precipitation: number;
+}
+
 export interface WeatherData {
   temperature: number;
   weatherCode: number;
@@ -6,6 +13,7 @@ export interface WeatherData {
   minTemp: number;
   precipitation: number;
   windSpeed: number;
+  hourly?: HourlyWeather[];
 }
 
 /**
@@ -51,10 +59,15 @@ function getWeatherDescription(code: number): string {
  */
 export async function getWeather(
   latitude: number,
-  longitude: number
+  longitude: number,
+  includeHourly: boolean = false
 ): Promise<WeatherData> {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
+    let url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
+
+    if (includeHourly) {
+      url += '&hourly=temperature_2m,weather_code,precipitation_probability&forecast_days=1';
+    }
 
     const response = await fetch(url);
 
@@ -64,7 +77,7 @@ export async function getWeather(
 
     const data = await response.json();
 
-    return {
+    const weatherData: WeatherData = {
       temperature: Math.round(data.current.temperature_2m),
       weatherCode: data.current.weather_code,
       description: getWeatherDescription(data.current.weather_code),
@@ -73,6 +86,24 @@ export async function getWeather(
       precipitation: data.daily.precipitation_sum[0],
       windSpeed: Math.round(data.current.wind_speed_10m),
     };
+
+    if (includeHourly && data.hourly) {
+      // Get next 12 hours of data
+      const hourlyData: HourlyWeather[] = [];
+
+      for (let i = 0; i < 12 && i < data.hourly.time.length; i++) {
+        hourlyData.push({
+          time: data.hourly.time[i],
+          temperature: Math.round(data.hourly.temperature_2m[i]),
+          weatherCode: data.hourly.weather_code[i],
+          precipitation: data.hourly.precipitation_probability?.[i] || 0,
+        });
+      }
+
+      weatherData.hourly = hourlyData;
+    }
+
+    return weatherData;
   } catch (error) {
     console.error('Error fetching weather:', error);
     throw error;

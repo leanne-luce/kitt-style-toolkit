@@ -1,9 +1,25 @@
 import { WeatherData } from '@/services/weather';
+import { getCurrentOutfit, getCurrentHoroscope } from './weather-storage';
 
 /**
- * Converts weather data and outfit recommendations into a Vogue Archive search query
+ * Converts outfit recommendation into a Vogue Archive search query
+ * Uses the actual outfit recommendation text if available, combined with horoscope
  */
-export function getWeatherBasedFashionQuery(weather: WeatherData): string {
+export async function getWeatherBasedFashionQuery(weather: WeatherData): Promise<string> {
+  // Try to get the stored outfit recommendation and horoscope
+  const outfitText = await getCurrentOutfit();
+  const horoscopeText = await getCurrentHoroscope();
+
+  if (outfitText) {
+    // Combine outfit recommendation with horoscope for personalized search
+    let query = outfitText;
+    if (horoscopeText) {
+      query += ' ' + horoscopeText;
+    }
+    return query;
+  }
+
+  // Fallback: generate query from weather data if no outfit is stored
   const { temperature, precipitation, weatherCode, maxTemp, minTemp } = weather;
   const avgTemp = (maxTemp + minTemp) / 2;
 
