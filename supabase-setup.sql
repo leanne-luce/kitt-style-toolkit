@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   profile_image_url TEXT,
   gender_preference TEXT CHECK (gender_preference IN ('womens', 'mens', 'both')),
   birth_date TEXT,
+  viewed_vogue_items JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

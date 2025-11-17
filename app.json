@@ -8,8 +8,20 @@
     "scheme": "kittstyletoolkit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kittstyletoolkit.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Kitt Style Toolkit needs your location to provide weather-based outfit recommendations.",
+        "NSPhotoLibraryUsageDescription": "Kitt Style Toolkit needs access to your photo library to allow you to upload profile pictures.",
+        "NSCameraUsageDescription": "Kitt Style Toolkit needs access to your camera to allow you to take profile pictures."
+      }
     },
     "android": {
       "adaptiveIcon": {

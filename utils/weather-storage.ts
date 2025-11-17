@@ -2,16 +2,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WeatherData } from '@/services/weather';
 
 const WEATHER_KEY = '@current_weather';
+const WEATHER_TIMESTAMP_KEY = '@current_weather_timestamp';
 const OUTFIT_KEY = '@current_outfit';
 const HOROSCOPE_KEY = '@current_horoscope';
 
+// Cache weather for 30 minutes
+const WEATHER_CACHE_DURATION = 30 * 60 * 1000;
+
 /**
- * Save current weather data to local storage
+ * Save current weather data to local storage with timestamp
  */
 export async function saveCurrentWeather(weather: WeatherData): Promise<void> {
   try {
     const weatherString = JSON.stringify(weather);
-    await AsyncStorage.setItem(WEATHER_KEY, weatherString);
+    const timestamp = Date.now().toString();
+    await AsyncStorage.multiSet([
+      [WEATHER_KEY, weatherString],
+      [WEATHER_TIMESTAMP_KEY, timestamp],
+    ]);
   } catch (error) {
     console.error('Error saving weather:', error);
   }
@@ -29,16 +37,48 @@ export async function saveCurrentOutfit(outfit: string): Promise<void> {
 }
 
 /**
- * Get current weather data from local storage
+ * Get current weather data from local storage if still valid
+ * Returns null if cache is expired or doesn't exist
  */
 export async function getCurrentWeather(): Promise<WeatherData | null> {
   try {
-    const weatherString = await AsyncStorage.getItem(WEATHER_KEY);
-    if (!weatherString) return null;
+    const [[, weatherString], [, timestampString]] = await AsyncStorage.multiGet([
+      WEATHER_KEY,
+      WEATHER_TIMESTAMP_KEY,
+    ]);
+
+    if (!weatherString || !timestampString) return null;
+
+    const timestamp = parseInt(timestampString, 10);
+    const now = Date.now();
+
+    // Check if cache is still valid (within 30 minutes)
+    if (now - timestamp > WEATHER_CACHE_DURATION) {
+      return null;
+    }
+
     return JSON.parse(weatherString);
   } catch (error) {
     console.error('Error loading weather:', error);
     return null;
+  }
+}
+
+/**
+ * Check if cached weather is still valid
+ */
+export async function isWeatherCacheValid(): Promise<boolean> {
+  try {
+    const timestampString = await AsyncStorage.getItem(WEATHER_TIMESTAMP_KEY);
+    if (!timestampString) return false;
+
+    const timestamp = parseInt(timestampString, 10);
+    const now = Date.now();
+
+    return now - timestamp <= WEATHER_CACHE_DURATION;
+  } catch (error) {
+    console.error('Error checking weather cache:', error);
+    return false;
   }
 }
 

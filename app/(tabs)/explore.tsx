@@ -3,6 +3,7 @@ import { StyleSheet, ScrollView, View, Alert, Pressable, ActivityIndicator } fro
 import { Card, Button, TextInput, SegmentedButtons } from 'react-native-paper';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Typography } from '@/constants/theme';
@@ -16,7 +17,9 @@ import {
 } from '@/utils/profile-storage';
 
 export default function ProfileScreen() {
-  const { user, loading, signIn, signUp, signOut } = useAuth();
+  const { user, loading, signIn, signUp, signOut, resetPassword } = useAuth();
+  const router = useRouter();
+  const params = useLocalSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -56,6 +59,17 @@ export default function ProfileScreen() {
       loadProfile();
     }
   }, [user]);
+
+  // Auto-populate birthday from navigation params
+  useEffect(() => {
+    if (params.birthDate && typeof params.birthDate === 'string') {
+      setBirthDate(params.birthDate);
+      // Enable edit mode if user comes with a birthday to set
+      if (!profile) {
+        setIsEditMode(true);
+      }
+    }
+  }, [params.birthDate]);
 
   const loadProfile = async () => {
     if (!user) return;
@@ -177,6 +191,69 @@ export default function ProfileScreen() {
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Sign out failed');
     }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!user?.email) return;
+
+    Alert.alert(
+      'Reset Password',
+      'A password reset link will be sent to your email address.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send Reset Link',
+          onPress: async () => {
+            try {
+              await resetPassword(user.email);
+              Alert.alert(
+                'Check Your Email',
+                'We\'ve sent you a password reset link. Please:\n\n1. Open the email\n2. Click the reset link\n3. Come back to the app\n4. Navigate to the reset password screen to set your new password',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to send reset link');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Enter Email', 'Please enter your email address to reset your password.');
+      return;
+    }
+
+    Alert.alert(
+      'Reset Password',
+      `A password reset link will be sent to ${email}`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send Reset Link',
+          onPress: async () => {
+            try {
+              await resetPassword(email);
+              Alert.alert(
+                'Check Your Email',
+                'We\'ve sent you a password reset link. Please:\n\n1. Open the email\n2. Click the reset link (this opens your browser)\n3. Come back to the app\n4. Sign in or navigate to set your new password',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to send reset link');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -366,10 +443,13 @@ export default function ProfileScreen() {
                 <Card.Content style={styles.cardContent}>
                   <ThemedText style={styles.sectionTitle}>Account</ThemedText>
 
-                  <View style={styles.infoRow}>
-                    <ThemedText style={styles.label}>Email:</ThemedText>
-                    <ThemedText style={styles.value}>{user.email}</ThemedText>
-                  </View>
+                  <Button
+                    mode="outlined"
+                    onPress={handlePasswordReset}
+                    style={styles.passwordResetButton}
+                    textColor={Colors.light.tint}>
+                    Reset Password
+                  </Button>
 
                   <Button
                     mode="contained"
@@ -433,6 +513,27 @@ export default function ProfileScreen() {
               buttonColor={Colors.light.tint}>
               {isSignUp ? 'Sign Up' : 'Sign In'}
             </Button>
+
+            {!isSignUp && (
+              <>
+                <Button
+                  mode="text"
+                  onPress={handleForgotPassword}
+                  style={styles.forgotPasswordButton}
+                  textColor={Colors.light.tint}
+                  compact>
+                  Forgot Password?
+                </Button>
+                <Button
+                  mode="text"
+                  onPress={() => router.push('/reset-password')}
+                  style={styles.forgotPasswordButton}
+                  textColor={Colors.light.tint}
+                  compact>
+                  Already have reset link? Enter new password
+                </Button>
+              </>
+            )}
 
             <Button
               mode="text"
@@ -506,11 +607,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
+  forgotPasswordButton: {
+    marginTop: 4,
+  },
   toggleButton: {
     marginTop: 8,
   },
+  passwordResetButton: {
+    marginTop: 16,
+    borderColor: Colors.light.tint,
+  },
   signOutButton: {
-    marginTop: 24,
+    marginTop: 12,
   },
   infoRow: {
     marginBottom: 16,

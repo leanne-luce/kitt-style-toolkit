@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, Dimensions, Animated, Modal } from 'react-native';
-import { Card, TextInput, Button, IconButton } from 'react-native-paper';
+import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator, Alert, Dimensions, Animated } from 'react-native';
+import { Card, TextInput, Button } from 'react-native-paper';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 
@@ -21,15 +21,21 @@ import { getCurrentLocation, getCityFromCoords } from '@/services/location';
 import { getWeather, WeatherData } from '@/services/weather';
 import { getOutfitRecommendation } from '@/utils/outfit-recommendations';
 import { getWeatherIllustration } from '@/components/illustrations/weather-illustrations';
-import { saveCurrentWeather, saveCurrentOutfit, saveCurrentHoroscope } from '@/utils/weather-storage';
+import { saveCurrentWeather, saveCurrentOutfit, saveCurrentHoroscope, getCurrentWeather, getCurrentOutfit } from '@/utils/weather-storage';
 import { getLunarPhase } from '@/utils/lunar-phase';
 import { lunarIllustrations } from '@/components/illustrations/lunar-illustrations';
+import { getViewedItems, markItemAsViewed } from '@/utils/viewed-items-storage';
+import { getDailyColorPalette, formatColorPaletteForSearch } from '@/utils/daily-color-palette';
+import { createEnhancedSearchQuery } from '@/utils/extract-garments';
+import { calculateCombinedScore } from '@/utils/season-relevance';
+import { getDailyIllustration } from '@/utils/daily-illustration';
 
 const API_URL = 'https://vogue-archive-api.onrender.com';
 
 interface SearchResult {
   id: string;
   score: number;
+  combinedScore?: number;
   metadata: {
     description: string;
     designer: string;
@@ -77,14 +83,20 @@ export default function HomeScreen() {
   const [weatherError, setWeatherError] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [outfitRecommendation, setOutfitRecommendation] = useState<string>('');
   const [genderPreference, setGenderPreference] = useState<'womens' | 'mens' | 'both'>('both');
-  const [selectedItem, setSelectedItem] = useState<SearchResult | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const illustrationColor = useThemeColor({}, 'text');
 
   // Animation values for horoscope illustration
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const lastBounceTime = useRef(0);
+
+  // Scroll position management
+  const scrollViewRef = useRef<ScrollView>(null);
+  const savedScrollPosition = useRef(0);
 
   // Format birth date with slashes as user types
   const handleBirthDateChange = (text: string) => {
@@ -99,15 +111,64 @@ export default function HomeScreen() {
     setBirthDate(formatted);
   };
 
-  // Modal handlers
-  const handleItemPress = (item: SearchResult) => {
-    setSelectedItem(item);
-    setModalVisible(true);
+  // Navigate to detail page
+  const handleItemPress = async (item: SearchResult) => {
+    // Mark item as viewed (only if user is logged in)
+    if (user) {
+      await markItemAsViewed(user.id, item.id);
+    }
+
+    router.push({
+      pathname: '/vogue-item-detail',
+      params: {
+        id: item.id,
+        score: item.score.toString(),
+        description: item.metadata.description,
+        designer: item.metadata.designer,
+        season: item.metadata.season,
+        year: item.metadata.year.toString(),
+        category: item.metadata.category,
+        city: item.metadata.city,
+        section: item.metadata.section,
+        image_url: item.metadata.image_url,
+        aesthetic_score: item.metadata.aesthetic_score.toString(),
+      },
+    });
   };
 
-  const handleCloseModal = () => {
-    setModalVisible(false);
-    setSelectedItem(null);
+  // Handle scroll to bottom - trigger bounce animation and save position
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+
+    // Save scroll position
+    savedScrollPosition.current = contentOffset.y;
+
+    const paddingToBottom = 20; // Trigger when within 20 pixels of bottom
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+    if (isCloseToBottom && hasBirthDate && zodiacSign) {
+      // Debounce: only trigger if 1.5 seconds have passed since last bounce
+      const now = Date.now();
+      if (now - lastBounceTime.current > 1500) {
+        lastBounceTime.current = now;
+
+        // Trigger bounce animation
+        Animated.sequence([
+          Animated.spring(bounceAnim, {
+            toValue: 1.2,
+            friction: 3,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+          Animated.spring(bounceAnim, {
+            toValue: 1,
+            friction: 3,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }
+    }
   };
 
   // Load horoscope when screen is focused
@@ -115,6 +176,23 @@ export default function HomeScreen() {
     useCallback(() => {
       loadHoroscope();
     }, [user])
+  );
+
+  // Restore scroll position when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Small delay to ensure content is rendered before scrolling
+      const timer = setTimeout(() => {
+        if (scrollViewRef.current && savedScrollPosition.current > 0) {
+          scrollViewRef.current.scrollTo({
+            y: savedScrollPosition.current,
+            animated: false,
+          });
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }, [])
   );
 
   // Load weather on mount
@@ -216,7 +294,7 @@ export default function HomeScreen() {
 
       setZodiacSign(sign);
       setHasBirthDate(true);
-      setIllustration(zodiacIllustrations[sign]);
+      setIllustration(getDailyIllustration());
 
       // Get daily zodiac prompt (fetches fresh or returns cached)
       const { prompt: stylePrompt, note } = await getDailyZodiacPrompt(sign);
@@ -251,8 +329,29 @@ export default function HomeScreen() {
       const profile = await getUserProfile(user.id);
 
       if (!profile) {
-        Alert.alert('Error', 'Please complete your profile first');
-        setIsSaving(false);
+        // Profile doesn't exist - navigate to profile page to complete setup
+        Alert.alert(
+          'Complete Your Profile',
+          'Please complete your profile to save your birth date and get your personalized horoscope.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => setIsSaving(false),
+            },
+            {
+              text: 'Complete Profile',
+              onPress: () => {
+                setIsSaving(false);
+                // Navigate to profile page (YOU tab) with birthday
+                router.push({
+                  pathname: '/(tabs)/explore',
+                  params: { birthDate: birthDate },
+                });
+              },
+            },
+          ]
+        );
         return;
       }
 
@@ -283,6 +382,28 @@ export default function HomeScreen() {
       setWeatherLoading(true);
       setWeatherError('');
 
+      // Try to load from cache first
+      const cachedWeather = await getCurrentWeather();
+      const cachedOutfit = await getCurrentOutfit();
+
+      if (cachedWeather && cachedOutfit) {
+        // Use cached data
+        setWeather(cachedWeather);
+        setOutfitRecommendation(cachedOutfit);
+        setWeatherLoading(false);
+
+        // Get daily color palette
+        const colorPalette = getDailyColorPalette();
+        const colorString = formatColorPaletteForSearch(colorPalette);
+
+        // Create enhanced search query with garments and colors
+        const enhancedQuery = createEnhancedSearchQuery(cachedOutfit, colorString);
+
+        // Perform search with enhanced query
+        await performSearch(enhancedQuery);
+        return;
+      }
+
       // Get user location
       const coords = await getCurrentLocation();
 
@@ -292,10 +413,10 @@ export default function HomeScreen() {
         return;
       }
 
-      // Get city name and weather in parallel
+      // Get city name and weather in parallel (include hourly data)
       const [cityName, weatherData] = await Promise.all([
         getCityFromCoords(coords.latitude, coords.longitude),
-        getWeather(coords.latitude, coords.longitude),
+        getWeather(coords.latitude, coords.longitude, true),
       ]);
 
       setLocation(cityName);
@@ -304,12 +425,24 @@ export default function HomeScreen() {
       // Generate outfit recommendation
       const recommendation = getOutfitRecommendation(weatherData);
 
+      // Save outfit recommendation to state for consistent display
+      setOutfitRecommendation(recommendation.outfit);
+
+      // Get daily color palette
+      const colorPalette = getDailyColorPalette();
+      const colorString = formatColorPaletteForSearch(colorPalette);
+
+      // Create enhanced search query with garments and colors
+      const enhancedQuery = createEnhancedSearchQuery(recommendation.outfit, colorString);
+      console.log('Enhanced search query:', enhancedQuery);
+      console.log('Daily color palette:', colorString);
+
       // Save weather and outfit to storage for Vogue Archive to use
       await saveCurrentWeather(weatherData);
       await saveCurrentOutfit(recommendation.outfit);
 
-      // Perform search with outfit recommendation
-      await performSearch(recommendation.outfit);
+      // Perform search with enhanced query
+      await performSearch(enhancedQuery);
     } catch (err) {
       console.error('Error loading weather:', err);
       setWeatherError('Failed to load weather data. Please try again.');
@@ -322,7 +455,13 @@ export default function HomeScreen() {
     if (!searchQuery.trim()) return;
 
     setSearchLoading(true);
+    // Save the original search query to display to user
+    setSearchQuery(searchQuery.trim());
+
     try {
+      // Get list of already-viewed items to filter out (only if user is logged in)
+      const viewedItemIds = user ? await getViewedItems(user.id) : [];
+
       // Append gender preference to query behind the scenes
       let enhancedQuery = searchQuery.trim();
       if (genderPreference === 'womens') {
@@ -331,6 +470,9 @@ export default function HomeScreen() {
         enhancedQuery += ' menswear';
       }
 
+      // Request more results to account for filtering
+      const requestCount = 20; // Request 20, filter, then take top 6
+
       const response = await fetch(`${API_URL}/search`, {
         method: 'POST',
         headers: {
@@ -338,7 +480,7 @@ export default function HomeScreen() {
         },
         body: JSON.stringify({
           query: enhancedQuery,
-          top_k: 6, // Get 6 results for the home page
+          top_k: requestCount,
           gender_preference: genderPreference,
         }),
       });
@@ -354,7 +496,35 @@ export default function HomeScreen() {
         index === self.findIndex((r) => r.id === result.id)
       );
 
-      setSearchResults(uniqueResults);
+      // Filter out already-viewed items
+      const unseenResults = uniqueResults.filter((result: SearchResult) =>
+        !viewedItemIds.includes(result.id)
+      );
+
+      // Re-rank results using season relevance and recency
+      const rerankedResults = unseenResults.map((result: SearchResult) => {
+        const combinedScore = calculateCombinedScore(
+          result.score,
+          result.metadata.season,
+          searchQuery
+        );
+        return {
+          ...result,
+          combinedScore,
+        };
+      }).sort((a, b) => b.combinedScore - a.combinedScore);
+
+      console.log('Top 3 reranked results:', rerankedResults.slice(0, 3).map(r => ({
+        season: r.metadata.season,
+        year: r.metadata.year,
+        originalScore: r.score,
+        combinedScore: r.combinedScore,
+      })));
+
+      // Take top 6 re-ranked results
+      const finalResults = rerankedResults.slice(0, 6);
+
+      setSearchResults(finalResults);
     } catch (error: any) {
       console.error('Search error:', error);
       // Silently fail - search results are optional
@@ -467,7 +637,12 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <View style={styles.brandContainer}>
           <Image
             source={require('@/assets/images/kitt-logo.png')}
@@ -496,6 +671,48 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* Hourly Forecast */}
+        {weather && !weatherLoading && weather.hourly && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hourlyContainer}
+          >
+            {weather.hourly.map((hour, index) => {
+              const time = new Date(hour.time);
+              const now = new Date();
+
+              // First hour is "Now" since we start from most recently passed hour
+              const isNow = index === 0;
+
+              const hourStr = isNow
+                ? 'Now'
+                : time.getHours() === 0
+                  ? '12 AM'
+                  : time.getHours() < 12
+                    ? `${time.getHours()} AM`
+                    : time.getHours() === 12
+                      ? '12 PM'
+                      : `${time.getHours() - 12} PM`;
+
+              const HourWeatherIcon = getWeatherIllustration(hour.weatherCode);
+
+              return (
+                <View key={index} style={styles.hourlyItem}>
+                  <ThemedText style={[styles.hourlyTime, isNow && styles.hourlyTimeNow]}>
+                    {hourStr}
+                  </ThemedText>
+                  <HourWeatherIcon size={32} color={illustrationColor} />
+                  <ThemedText style={styles.hourlyTemp}>{hour.temperature}°</ThemedText>
+                  <ThemedText style={styles.hourlyPrecip}>
+                    {hour.precipitation > 0 ? `${hour.precipitation}%` : '—'}
+                  </ThemedText>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {/* Style Horoscope Content */}
         {hasBirthDate && zodiacSign && (
           <View style={styles.horoscopeSection}>
@@ -506,17 +723,12 @@ export default function HomeScreen() {
             <ThemedText style={styles.prompt}>{prompt}</ThemedText>
 
             {/* Outfit Recommendation */}
-            {weather && !weatherLoading && (
+            {weather && !weatherLoading && outfitRecommendation && (
               <View style={styles.outfitSection}>
                 <ThemedText style={styles.forThisWeatherLabel}>FOR THIS WEATHER</ThemedText>
-                {(() => {
-                  const recommendation = getOutfitRecommendation(weather);
-                  return (
-                    <ThemedText style={styles.outfitText}>
-                      {recommendation.outfit}
-                    </ThemedText>
-                  );
-                })()}
+                <ThemedText style={styles.outfitText}>
+                  {outfitRecommendation}
+                </ThemedText>
               </View>
             )}
           </View>
@@ -609,6 +821,9 @@ export default function HomeScreen() {
 
             <View style={styles.vogueSection}>
               <ThemedText style={styles.vogueSectionTitle}>From the Vogue Archive</ThemedText>
+              {searchQuery && (
+                <ThemedText style={styles.searchQueryText}>"{searchQuery}"</ThemedText>
+              )}
 
               {searchLoading ? (
                 <View style={styles.searchLoadingContainer}>
@@ -648,7 +863,9 @@ export default function HomeScreen() {
             <Animated.View
               style={{
                 transform: [
-                  { scale: pulseAnim },
+                  {
+                    scale: Animated.multiply(pulseAnim, bounceAnim),
+                  },
                   {
                     rotate: rotateAnim.interpolate({
                       inputRange: [-1, 1],
@@ -665,67 +882,6 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Modal for Vogue Archive Item Details */}
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={handleCloseModal}>
-        <ThemedView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <IconButton
-              icon="close"
-              size={24}
-              onPress={handleCloseModal}
-              iconColor={Colors.light.text}
-            />
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {selectedItem?.metadata.image_url && (
-              <Image
-                source={{ uri: selectedItem.metadata.image_url }}
-                style={styles.modalImage}
-                contentFit="contain"
-                transition={200}
-              />
-            )}
-            {selectedItem && (
-              <View style={styles.modalDetails}>
-                <View style={styles.modalMetaRow}>
-                  <ThemedText style={styles.modalSeason}>
-                    {selectedItem.metadata.season} {selectedItem.metadata.year}
-                  </ThemedText>
-                  <ThemedText style={styles.modalCity}>
-                    {selectedItem.metadata.city}
-                  </ThemedText>
-                </View>
-                {selectedItem.metadata.designer && (
-                  <ThemedText style={styles.modalDesigner}>
-                    {selectedItem.metadata.designer}
-                  </ThemedText>
-                )}
-                <ThemedText style={styles.modalDescription}>
-                  {selectedItem.metadata.description}
-                </ThemedText>
-                {selectedItem.metadata.category && (
-                  <ThemedText style={styles.modalCategory}>
-                    {selectedItem.metadata.category}
-                  </ThemedText>
-                )}
-                {selectedItem.metadata.section && (
-                  <ThemedText style={styles.modalSection}>
-                    {selectedItem.metadata.section}
-                  </ThemedText>
-                )}
-                <ThemedText style={styles.modalScore}>
-                  {(selectedItem.score * 100).toFixed(0)}% match
-                </ThemedText>
-              </View>
-            )}
-          </ScrollView>
-        </ThemedView>
-      </Modal>
     </ThemedView>
   );
 }
@@ -785,9 +941,11 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginTop: 24,
+    marginBottom: 24,
+    paddingVertical: 16,
     gap: 16,
   },
   weatherTempRow: {
@@ -799,6 +957,39 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 2,
     flex: 1,
+  },
+  hourlyContainer: {
+    paddingHorizontal: 24,
+    gap: 20,
+    marginBottom: 32,
+  },
+  hourlyItem: {
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 60,
+  },
+  hourlyTime: {
+    ...Typography.caption,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    opacity: 0.6,
+  },
+  hourlyTimeNow: {
+    opacity: 1,
+    fontWeight: '600',
+    color: Colors.light.tint,
+  },
+  hourlyTemp: {
+    ...Typography.body,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  hourlyPrecip: {
+    ...Typography.caption,
+    fontSize: 10,
+    color: Colors.light.tint,
+    opacity: 0.7,
+    minHeight: 14, // Ensure consistent spacing even with "—"
   },
   horoscopeSection: {
     marginBottom: 32,
@@ -1047,7 +1238,7 @@ const styles = StyleSheet.create({
   },
   viewMoreLink: {
     marginTop: 20,
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
     paddingVertical: 12,
   },
   viewMoreText: {
@@ -1098,7 +1289,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     textAlign: 'center',
     marginTop: 24,
-    fontStyle: 'italic',
   },
   vogueSection: {
     marginBottom: 32,
@@ -1115,7 +1305,15 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     opacity: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 28,
+    marginBottom: 12,
+  },
+  searchQueryText: {
+    ...Typography.body,
+    fontSize: 14,
+    fontWeight: '300',
+    opacity: 0.7,
+    marginBottom: 24,
+    fontStyle: 'italic',
   },
   viewAllText: {
     ...Typography.body,
@@ -1154,80 +1352,5 @@ const styles = StyleSheet.create({
     marginTop: 20,
     opacity: 0.7,
     color: Colors.light.tint,
-  },
-  // Modal styles
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    backgroundColor: Colors.light.background,
-  },
-  modalContent: {
-    paddingBottom: 40,
-  },
-  modalImage: {
-    width: width,
-    height: width * 1.33,
-    backgroundColor: Colors.light.border,
-  },
-  modalDetails: {
-    padding: 24,
-  },
-  modalMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalSeason: {
-    ...Typography.caption,
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    opacity: 0.6,
-  },
-  modalCity: {
-    ...Typography.caption,
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    opacity: 0.6,
-  },
-  modalDesigner: {
-    ...Typography.heading,
-    fontSize: 28,
-    fontWeight: '300',
-    letterSpacing: 0.5,
-    marginBottom: 16,
-  },
-  modalDescription: {
-    ...Typography.body,
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '300',
-    marginBottom: 16,
-  },
-  modalCategory: {
-    ...Typography.caption,
-    fontSize: 13,
-    opacity: 0.7,
-    marginBottom: 8,
-  },
-  modalSection: {
-    ...Typography.caption,
-    fontSize: 13,
-    opacity: 0.7,
-    marginBottom: 8,
-  },
-  modalScore: {
-    ...Typography.caption,
-    fontSize: 13,
-    color: Colors.light.tint,
-    fontWeight: '500',
-    marginTop: 16,
   },
 });

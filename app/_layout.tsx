@@ -24,6 +24,8 @@ export default function RootLayout() {
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             <Stack.Screen name="style-horoscope" options={{ title: 'Style Horoscope', headerBackTitle: 'Home' }} />
             <Stack.Screen name="outfit-weather-report" options={{ title: 'Outfit Weather Report', headerBackTitle: 'Home' }} />
+            <Stack.Screen name="reset-password" options={{ headerShown: false, title: 'Reset Password' }} />
+            <Stack.Screen name="vogue-item-detail" options={{ title: 'Vogue Archive', headerBackTitle: 'Home' }} />
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>

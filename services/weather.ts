@@ -88,10 +88,26 @@ export async function getWeather(
     };
 
     if (includeHourly && data.hourly) {
-      // Get next 12 hours of data
+      // Get hourly data starting from current hour
       const hourlyData: HourlyWeather[] = [];
+      const now = new Date();
+      const currentHour = now.getHours();
 
-      for (let i = 0; i < 12 && i < data.hourly.time.length; i++) {
+      // Find the index that matches the current hour
+      let startIndex = 0;
+      for (let i = 0; i < data.hourly.time.length; i++) {
+        const hourTime = new Date(data.hourly.time[i]);
+        // Match the hour that corresponds to the current hour
+        if (hourTime.getHours() === currentHour &&
+            hourTime.getDate() === now.getDate() &&
+            hourTime.getMonth() === now.getMonth()) {
+          startIndex = i;
+          break;
+        }
+      }
+
+      // Get all remaining hours (up to 24 hours max)
+      for (let i = startIndex; i < Math.min(startIndex + 24, data.hourly.time.length); i++) {
         hourlyData.push({
           time: data.hourly.time[i],
           temperature: Math.round(data.hourly.temperature_2m[i]),
