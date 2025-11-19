@@ -20,7 +20,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Kitt Style Toolkit needs your location to provide weather-based outfit recommendations.",
         "NSPhotoLibraryUsageDescription": "Kitt Style Toolkit needs access to your photo library to allow you to upload profile pictures.",
-        "NSCameraUsageDescription": "Kitt Style Toolkit needs access to your camera to allow you to take profile pictures."
+        "NSCameraUsageDescription": "Kitt Style Toolkit needs access to your camera to allow you to take profile pictures.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -55,6 +56,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3b390cce-2dc3-47cf-a77a-02684cb15888"
+      }
     }
   }
 }
